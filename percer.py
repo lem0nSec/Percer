@@ -6,10 +6,6 @@ import pefile
 import os
 import sys
 
-
-# le strutture hanno solo informazioni
-# le classi hanno anche utilità (metodi), oltre alle informazioni (attributi)
-
 class PortExec:
     
     SUBSYSTEMS = { 
