@@ -132,7 +132,7 @@ def main():
     args = parser.parse_args()
     
     f = Figlet(font='slant')
-    print(f.renderText(f'{sys.argv[0]}'))
+    print(f.renderText(sys.argv[0]))
 
     portexec = None
     if os.path.isfile(args.PE) == True:
