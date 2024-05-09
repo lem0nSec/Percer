@@ -7,7 +7,6 @@ import os
 import sys
 
 class PortExec:
-    
     SUBSYSTEMS = { 
         0:"IMAGE_SUBSYSTEM_UNKNOWN",
         1:"IMAGE_SUBSYSTEM_NATIVE",
