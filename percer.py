@@ -41,7 +41,7 @@ class PortExec:
 
         try:
             self.handle = pefile.PE(self.name)
-            print(f"Input PE : {os.path.basename(self.name)}\n" + "="*60)
+            print(f"Input PE\t: {os.path.basename(self.name)}\n" + "="*60)
         except:
             print("[ERROR] File opening error")
             sys.exit(1)
@@ -94,21 +94,21 @@ class PortExec:
                 protection = characteristics[i.Characteristics]
             else:
                 protection = "undefined"
-            print(f"[+] {str(i.Name, encoding='utf-8')}\n\t{hex(i.Characteristics)} - {protection}")
+            print(f"* {str(i.Name, encoding='utf-8')}\n\t{hex(i.Characteristics)} - {protection}")
 
     def get_imports(self):
         for i in (self.handle).DIRECTORY_ENTRY_IMPORT:
             print("[+] " + str(i.dll, encoding='utf-8'))
             for j in i.imports:
                 try:
-                    print("\t" + str(j.name, encoding='utf-8'))
+                    print("\t* " + str(j.name, encoding='utf-8'))
                 except TypeError:
                     pass
 
     def get_exports(self):
         for i in (self.handle).DIRECTORY_ENTRY_EXPORT.symbols:
             try:
-                print("[+] " + str(i.name, encoding='utf-8'))
+                print("* " + str(i.name, encoding='utf-8'))
             except TypeError:
                 pass
 
