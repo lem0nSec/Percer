@@ -12,11 +12,6 @@ from cryptography import x509
 from asn1crypto import cms
 
 
-# TODO
-# Add resource dumping
-# Fix CHARACTERISTICS
-
-
 class PortExec:
     SUBSYSTEMS = { 
         0:"IMAGE_SUBSYSTEM_UNKNOWN",
@@ -34,20 +29,22 @@ class PortExec:
         16:"IMAGE_SUBSYSTEM_WINDOWS_BOOT_APPLICATION" }
 
     CHARACTERISTICS = {
-        1644167200:"RX",
-        1744830496:"RX",
-        1610612768:"RX",
-        1207959616:"R",
-        1073741888:"R",
-        1207959616:"R",
-        1207959616:"R",
-        3355443264:"RW",
-        3355443264:"RW",
-        3221225536:"RW",
-        1107296320:"R"
-     }
+        0x20000000: "EXECUTE",
+        0x40000000: "READ",
+        0x80000000: "WRITE"
+    }
+
+    ARCHITECTURES = {
+        0x014c: "x86 (32-bit)",
+        0x8664: "x64 (64-bit)",
+        0x01c0: "ARM",
+        0x01c4: "ARMv7",
+        0xAA64: "ARM64",
+        0x0200: "Intel Itanium (IA-64)",
+        0x01f0: "PowerPC",
+    }
     
-    def __init__(self, name, subsystems=SUBSYSTEMS):
+    def __init__(self, name, subsystems=SUBSYSTEMS, architectures=ARCHITECTURES):
         self.name = name
 
         try:
@@ -114,10 +111,10 @@ class PortExec:
         else:
             self.pe_type = "Dynamic library"
 
-        if self.handle.FILE_HEADER.IMAGE_FILE_32BIT_MACHINE == True:
-            self.architecture = "32 bit"
-        else:
-            self.architecture = "64 bit"
+        self.architecture = architectures.get(
+            self.handle.FILE_HEADER.Machine, 
+            f"Unknown (0x{self.handle.FILE_HEADER.Machine:04x})"
+            )
 
         if self.handle.OPTIONAL_HEADER.Subsystem in subsystems:
             self.subsystem = subsystems[self.handle.OPTIONAL_HEADER.Subsystem]
@@ -156,13 +153,13 @@ class PortExec:
         print("TermServerAware\t: " + str(self.termserveraware))
 
     def get_sections(self, characteristics=CHARACTERISTICS):
-        protection = ""
+        protection = []
         for i in self.handle.sections:
-            if i.Characteristics in characteristics:
-                protection = characteristics[i.Characteristics]
-            else:
-                protection = "undefined"
+            for j in characteristics:
+                if (i.Characteristics & j) != 0:
+                    protection.append(characteristics[j])
             print(f"* {str(i.Name, encoding='utf-8')}\n\t{hex(i.Characteristics)} - {protection}")
+            protection = []
 
     def get_imports(self):
         try:
