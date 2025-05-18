@@ -19,3 +19,6 @@ options:
 Example (no options): python percer.py C:\Windows\System32\kernel32.dll
 ```
 
+
+Below is an example of Percer being run on Kernel32.dll.
+![](pics/percer_1.png)
