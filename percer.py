@@ -223,7 +223,7 @@ class PortExec:
 def main():
     parser = argparse.ArgumentParser(
                     prog=f'{sys.argv[0]}',
-                    epilog=f'[Example] python {sys.argv[0]} C:\\Windows\\System32\\kernel32.dll'
+                    epilog=f'Example (no options):\n python {sys.argv[0]} C:\\Windows\\System32\\kernel32.dll'
                     )
 
     parser.add_argument('PE')
