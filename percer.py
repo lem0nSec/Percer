@@ -109,7 +109,7 @@ class PortExec:
         if self.handle.is_exe() == True:
             self.pe_type = "Executable image"
         else:
-            self.pe_type = "Dynamic library"
+            self.pe_type = "Not .exe"
 
         self.architecture = architectures.get(
             self.handle.FILE_HEADER.Machine, 
