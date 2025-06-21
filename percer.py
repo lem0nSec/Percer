@@ -103,13 +103,8 @@ class PortExec:
             self.fileversion = info['FileVersion'] # File version could be wrong - need to fix this
         else:
             self.fileversion = ""
-        
-        # fix PE type identification.
-        # Use 'Characteristics' in the FILE_HEADER instead
-        if self.handle.is_exe() == True:
-            self.pe_type = "Executable image"
-        else:
-            self.pe_type = "Not .exe"
+
+        self.pdb = self.extract_pdb_path()
 
         self.architecture = architectures.get(
             self.handle.FILE_HEADER.Machine, 
@@ -127,6 +122,21 @@ class PortExec:
             else:
                 self.rebase = False
 
+        characteristics = self.handle.FILE_HEADER.Characteristics
+
+        if self.handle.is_exe() == True:
+            self.pe_type = "Executable image - .exe"
+        elif characteristics & 0x2000:
+            self.pe_type = "Dynamic link library - .dll"
+        elif self.subsystem == self.SUBSYSTEMS[1]:
+            self.pe_type = "Driver (Native subsystem) - .sys"
+        elif self.subsystem == self.SUBSYSTEMS[2]:
+            self.pe_type = "Windows GUI Executable - .exe"
+        elif self.subsystem == self.SUBSYSTEMS[3]:
+            self.pe_type = "Console Executable - .exe"
+        else:
+            self.pe_type = "Unknown or Special PE Type"
+
     def __str__(self):
         return f"{self.name}\t:{self.pe_type}"
 
@@ -134,13 +144,13 @@ class PortExec:
         print(f"PE\t\t: {self.pe_type}")
         print(f"Hashes\t\tv\n\t\t* sha256\t\t: {self.sha256}\n\t\t* md5\t\t\t: {self.md5}\n\t\t* sha1\t\t\t: {self.sha1}")
 
-        # Metadata
-        print("File metadata\tv")
+        print("File Info\tv")
         print(f"\t\t* Original Filename\t: {self.originalfilename}")
         print(f"\t\t* File Description\t: {self.filedescription}")
         print(f"\t\t* Product Name\t\t: {self.productname}")
         print(f"\t\t* Internal Name\t\t: {self.internalname}")
         print(f"\t\t* File Version\t\t: {self.fileversion}")
+        print(f"\t\t* PDB\t\t\t: {self.pdb}")
 
         print(f"Is signed file\t: {self.isSigned}")
         print(f"Architecture\t: {self.architecture}")
@@ -195,6 +205,7 @@ class PortExec:
         certificates = []
         content_info = cms.ContentInfo.load(cert_data)
         signed_data = content_info['content']
+        
         for cert in signed_data['certificates']:
             x509_cert = x509.load_der_x509_certificate(cert.dump())
             thumbprint = x509_cert.fingerprint(hashes.SHA1()).hex()
@@ -202,17 +213,47 @@ class PortExec:
             signature_hash = hashes.Hash(x509_cert.signature_hash_algorithm)
             signature_hash.update(x509_cert.tbs_certificate_bytes)
             signature_hash = signature_hash.finalize().hex()
+            
+            # Extract certificate validity period
+            not_before = x509_cert.not_valid_before_utc
+            not_after = x509_cert.not_valid_after_utc
 
             certificates.append({
                 'thumbprint': thumbprint,
                 'subject': subject,
-                'signature_hash': signature_hash
+                'signature_hash': signature_hash,
+                'not_before': not_before,
+                'not_after': not_after
             })
+
         for i, cert in enumerate(certificates, 1):
             print(f"[+] Certificate {i}")
             print(f"\t\t* Subject: {cert['subject']}")
             print(f"\t\t* Thumbprint: {cert['thumbprint']}")
             print(f"\t\t* Signature Hash: {cert['signature_hash']}")
+            print(f"\t\t* Valid From: {cert['not_before']}")
+            print(f"\t\t* Valid Until: {cert['not_after']}")
+
+    def extract_pdb_path(self):
+        if hasattr(self.handle, 'DIRECTORY_ENTRY_DEBUG'):
+            for debug_entry in self.handle.DIRECTORY_ENTRY_DEBUG:
+                dbg_type = debug_entry.struct.Type
+                dbg_offset = debug_entry.struct.PointerToRawData
+
+                if dbg_type == 2:
+                    pe_data = self.handle.__data__
+                    pe_data.seek(dbg_offset)
+                    data = pe_data.read(24)  # RSDS header + guid + age
+
+                    if data[0:4] == b'RSDS':
+                        pdb_bytes = b''
+                        while True:
+                            byte = pe_data.read(1)
+                            if byte == b'\x00' or byte == b'':
+                                break
+                            pdb_bytes += byte
+
+                        return pdb_bytes.decode(errors='ignore')
 
     def get_handle(self):
         return self.handle
