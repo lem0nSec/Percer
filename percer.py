@@ -104,7 +104,11 @@ class PortExec:
         else:
             self.fileversion = ""
 
-        self.pdb = self.extract_pdb_path()
+        pdb_path = self.extract_pdb_path()
+        if pdb_path:
+            self.pdb = pdb_path
+        else:
+            self.pdb = None
 
         self.architecture = architectures.get(
             self.handle.FILE_HEADER.Machine, 
