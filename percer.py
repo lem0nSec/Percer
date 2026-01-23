@@ -68,7 +68,7 @@ class PortExec:
                             for key, value in st.entries.items():
                                 decoded_key = key.decode('utf-8')
                                 decoded_value = value.decode('utf-8')
-                                if decoded_key in ['OriginalFilename', 'FileDescription', 'ProductName', 'InternalName', 'FileVersion']:
+                                if decoded_key in ['OriginalFilename', 'FileDescription', 'ProductName', 'InternalName', 'FileVersion', 'ProductVersion']:
                                     info[decoded_key] = decoded_value
         except AttributeError:
             pass
@@ -103,6 +103,10 @@ class PortExec:
             self.fileversion = info['FileVersion'] # File version could be wrong - need to fix this
         else:
             self.fileversion = ""
+        if 'ProductVersion' in info:
+            self.productversion = info['ProductVersion']
+        else:
+            self.productversion = ""
 
         pdb_path = self.extract_pdb_path()
         if pdb_path:
@@ -153,7 +157,8 @@ class PortExec:
         print(f"\t\t* File Description\t: {self.filedescription}")
         print(f"\t\t* Product Name\t\t: {self.productname}")
         print(f"\t\t* Internal Name\t\t: {self.internalname}")
-        print(f"\t\t* File Version\t\t: {self.fileversion}")
+        print(f"\t\t* Product Version\t: {self.fileversion}")
+        print(f"\t\t* File Version\t\t: {self.productversion}")
         print(f"\t\t* PDB\t\t\t: {self.pdb}")
 
         print(f"Is signed file\t: {self.isSigned}")
@@ -204,11 +209,15 @@ class PortExec:
             print("No certificate found in the PE file.")
             sys.exit(1)
 
-        security_dir = self.handle.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']]
-        cert_data = bytes(self.handle.write()[security_dir.VirtualAddress + 8:security_dir.VirtualAddress + security_dir.Size])
-        certificates = []
-        content_info = cms.ContentInfo.load(cert_data)
-        signed_data = content_info['content']
+        try:
+            security_dir = self.handle.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']]
+            cert_data = bytes(self.handle.write()[security_dir.VirtualAddress + 8:security_dir.VirtualAddress + security_dir.Size])
+            certificates = []
+            content_info = cms.ContentInfo.load(cert_data)
+            signed_data = content_info['content']
+        except:
+            print("[-] An exception was raised while extracting the certificates.")
+            return
         
         for cert in signed_data['certificates']:
             x509_cert = x509.load_der_x509_certificate(cert.dump())
