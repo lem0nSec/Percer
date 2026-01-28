@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import pefile
+import struct
 import os
 import sys
 
@@ -54,9 +55,10 @@ class PortExec:
                 self.sha256 = (hashlib.sha256(thisfile)).hexdigest()
                 self.sha1 = (hashlib.sha1(thisfile)).hexdigest()
                 self.md5 = (hashlib.md5(thisfile)).hexdigest()
+                self.pesha256 = self.get_pesha256(thisfile).hexdigest()
             print(f"Input PE\t: {os.path.basename(self.name)}\n" + "="*60)
-        except:
-            print("[ERROR] File opening error")
+        except Exception as E:
+            print(f"[ERROR] {E}")
             sys.exit(1)
 
         try:
@@ -68,7 +70,13 @@ class PortExec:
                             for key, value in st.entries.items():
                                 decoded_key = key.decode('utf-8')
                                 decoded_value = value.decode('utf-8')
-                                if decoded_key in ['OriginalFilename', 'FileDescription', 'ProductName', 'InternalName', 'FileVersion', 'ProductVersion']:
+                                if decoded_key in [
+                                        'OriginalFilename', 
+                                        'FileDescription', 
+                                        'ProductName', 
+                                        'InternalName', 
+                                        'FileVersion', 
+                                        'ProductVersion']:
                                     info[decoded_key] = decoded_value
         except AttributeError:
             pass
@@ -108,7 +116,7 @@ class PortExec:
         else:
             self.productversion = ""
 
-        pdb_path = self.extract_pdb_path()
+        pdb_path = self.get_pdb()
         if pdb_path:
             self.pdb = pdb_path
         else:
@@ -150,7 +158,8 @@ class PortExec:
 
     def get_information(self):
         print(f"PE\t\t: {self.pe_type}")
-        print(f"Hashes\t\tv\n\t\t* sha256\t\t: {self.sha256}\n\t\t* md5\t\t\t: {self.md5}\n\t\t* sha1\t\t\t: {self.sha1}")
+
+        print(f"Hashes\t\tv\n\t\t* sha256\t\t: {self.sha256}\n\t\t* md5\t\t\t: {self.md5}\n\t\t* sha1\t\t\t: {self.sha1}\n\t\t* peSha256\t\t: {self.pesha256}")
 
         print("File Info\tv")
         print(f"\t\t* Original Filename\t: {self.originalfilename}")
@@ -247,7 +256,7 @@ class PortExec:
             print(f"\t\t* Valid From: {cert['not_before']}")
             print(f"\t\t* Valid Until: {cert['not_after']}")
 
-    def extract_pdb_path(self):
+    def get_pdb(self):
         if hasattr(self.handle, 'DIRECTORY_ENTRY_DEBUG'):
             for debug_entry in self.handle.DIRECTORY_ENTRY_DEBUG:
                 dbg_type = debug_entry.struct.Type
@@ -267,6 +276,25 @@ class PortExec:
                             pdb_bytes += byte
 
                         return pdb_bytes.decode(errors='ignore')
+
+    def get_pesha256(self, data):
+        checksum_offset = self.handle.OPTIONAL_HEADER.get_field_absolute_offset('CheckSum')
+        security_dir_entry = self.handle.OPTIONAL_HEADER.DATA_DIRECTORY[4]
+        security_dir_offset = security_dir_entry.get_field_absolute_offset('VirtualAddress')
+        sig_address = security_dir_entry.VirtualAddress
+        sig_size = security_dir_entry.Size
+        sig_file_offset = sig_address 
+
+        hasher = hashlib.new('sha256')
+        hasher.update(data[:checksum_offset])
+        hasher.update(data[checksum_offset + 4 : security_dir_offset])
+        start_of_rest = security_dir_offset + 8
+        if sig_address > 0 and sig_address < len(data):
+            hasher.update(data[start_of_rest : sig_file_offset])
+        else:
+            hasher.update(data[start_of_rest:])
+
+        return hasher
 
     def get_handle(self):
         return self.handle
