@@ -3,7 +3,6 @@
 import argparse
 import hashlib
 import pefile
-import struct
 import os
 import sys
 
@@ -344,3 +343,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
