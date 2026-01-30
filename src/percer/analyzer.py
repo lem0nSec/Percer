@@ -25,7 +25,6 @@ class PortExec:
 
     def _parse_info(self):
         """Internal method to extract file info string table."""
-        #self.info = {}
         self.information = {}
         info = {}
         try:
@@ -67,6 +66,7 @@ class PortExec:
         self.pe_type = self.pe_type()
 
     def _calculate_pesha(self, algorithm):
+        """Internal method to calculate authentihash"""
         if algorithm != 'sha256' and algorithm != 'sha1':
             raise ValueError("Wrong pesha algorithm")
 

@@ -1,0 +1,29 @@
+# --- Python Basics ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Virtual Environments ---
+venv/
+env/
+.env/
+.venv/
+
+# --- Distribution / Packaging ---
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- IDE Settings ---
+# VS Code
+.vscode/
+# PyCharm
+.idea/
+
+# --- Project Specific ---
+*.exe
+*.dll
+*.sys
+*.bin
+
