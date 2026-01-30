@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "percer"
+version = "0.1.0"
+description = "Quick PE file format dissection utility"
+authors = [{name = "lem0nSec"}]
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "pefile",
+    "pyfiglet",
+    "cryptography",
+    "asn1crypto"
+]
+
+[project.scripts]
+percer = "percer.cli:main"

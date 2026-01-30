@@ -1,0 +1,32 @@
+SUBSYSTEMS = { 
+        0:"IMAGE_SUBSYSTEM_UNKNOWN",
+        1:"IMAGE_SUBSYSTEM_NATIVE",
+        2:"IMAGE_SUBSYSTEM_WINDOWS_GUI",
+        3:"IMAGE_SUBSYSTEM_WINDOWS_CUI",
+        5:"IMAGE_SUBSYSTEM_OS2_CUI",
+        7:"IMAGE_SUBSYSTEM_POSIX_CUI",
+        9:"IMAGE_SUBSYSTEM_WINDOWS_CE_GUI",
+        10:"IMAGE_SUBSYSTEM_EFI_APPLICATION",
+        11:"IMAGE_SUBSYSTEM_EFI_BOOT_SERVICE_DRIVER",
+        12:"IMAGE_SUBSYSTEM_EFI_RUNTIME_DRIVER",
+        13:"IMAGE_SUBSYSTEM_EFI_ROM",
+        14:"IMAGE_SUBSYSTEM_XBOX",
+        16:"IMAGE_SUBSYSTEM_WINDOWS_BOOT_APPLICATION" 
+        }
+
+CHARACTERISTICS = {
+        0x20000000: "EXECUTE",
+        0x40000000: "READ",
+        0x80000000: "WRITE"
+        }
+
+ARCHITECTURES = {
+        0x014c: "x86 (32-bit)",
+        0x8664: "x64 (64-bit)",
+        0x01c0: "ARM",
+        0x01c4: "ARMv7",
+        0xAA64: "ARM64",
+        0x0200: "Intel Itanium (IA-64)",
+        0x01f0: "PowerPC"
+        }
+

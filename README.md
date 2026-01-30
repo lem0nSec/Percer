@@ -19,6 +19,9 @@ options:
 Example (no options): python percer.py C:\Windows\System32\kernel32.dll
 ```
 
-## Example Usage
+## Tool Example Usage 
 
 ![](pics/percer_1.png)
+
+## Lib Example Usage
+![](pics/percer_2.png)
