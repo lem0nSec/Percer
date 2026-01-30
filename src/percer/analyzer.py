@@ -119,7 +119,7 @@ class PortExec:
 
     def certificates(self):
         if self.signed_status == False:
-            raise ValueError(f"File not signed.")
+            raise ValueError(f"File is not signed.")
         
         certificates = []
         try:

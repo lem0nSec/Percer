@@ -8,8 +8,8 @@ from pyfiglet import Figlet
 
 def main():
     parser = argparse.ArgumentParser(
-        prog=f'{sys.argv[0]}',
-        epilog=f'Example (no options):\n python {sys.argv[0]} C:\\Windows\\System32\\kernel32.dll')
+        prog=f'{os.path.basename(sys.argv[0])} <PE file>',
+        epilog=f'Example (no options):\n {os.path.basename(sys.argv[0])} C:\\Windows\\System32\\kernel32.dll')
 
     parser.add_argument('PE')
     parser.add_argument('-a', '--all', required=False, action='store_true', help='Show all info')
@@ -17,15 +17,19 @@ def main():
     parser.add_argument('-i', '--imports', required=False, action='store_true', help='List imports')
     parser.add_argument('-s', '--sections', required=False, action='store_true', help='List sections')
     parser.add_argument('-c', '--certificates', required=False, action='store_true', help='Get certificates information')
+    parser.add_argument('-q', '--quiet', required=False, action='store_true', help='Do not print the banner')
     
     args = parser.parse_args()
     
     f = Figlet(font='slant')
-    print(f.renderText("percer.py"))
+    banner = f.renderText("percer.py")
 
     try:
         portexec = alz.PortExec(args.PE)
         prt = percer.printer.PEPrinter(portexec)
+
+        if not args.quiet:
+            print(banner)
 
         if args.all:
             print(portexec.get_handle())

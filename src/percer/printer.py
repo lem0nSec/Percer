@@ -50,6 +50,9 @@ class PEPrinter:
 			print(f"* {export_name}")
 
 	def print_certificates(self):
+		if self.object.signed_status() == False:
+			raise ValueError("File is not signed.")
+			
 		print("Dumping certificates:\n")
 		certificates = self.object.certificates()
 		for i, cert in enumerate(certificates, 1):
