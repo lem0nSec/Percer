@@ -13,7 +13,8 @@ dependencies = [
     "pefile",
     "pyfiglet",
     "cryptography",
-    "asn1crypto"
+    "asn1crypto",
+    "vt-py"
 ]
 
 [project.scripts]

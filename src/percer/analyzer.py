@@ -9,19 +9,40 @@ from asn1crypto import cms
 from .constants import SUBSYSTEMS, ARCHITECTURES, CHARACTERISTICS
 
 class PortExec:
-    def __init__(self, file_path):
+    def __init__(self, pe_obj, file_path=None):
+        self.handle = pe_obj
         self.file_path = file_path
-        
-        if not os.path.isfile(self.file_path):
-            raise FileNotFoundError(f"File not found: {self.file_path}")
-
-        try:
-            self.handle = pefile.PE(self.file_path)
-        except Exception as e:
-            raise ValueError(f"Failed to parse PE file: {e}")
 
         self._parse_info()
         self._parse_headers()
+
+    @classmethod
+    def from_file(cls, file_path):
+        if not os.path.isfile(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        try:
+            pe = pefile.PE(file_path)
+        except Exception as E:
+            raise ValueError(f"Exception has occurred: {E}")
+
+        return cls(pe, file_path=file_path)
+
+    @classmethod
+    def from_bytes(cls, data):
+        try:
+            pe = pefile.PE(data=data)
+        except Exception as E:
+            raise ValueError(f"Exception has occurred: {E}")
+
+        return cls(pe, file_path=None)
+
+    @classmethod
+    def from_pefile_object(cls, pe_obj):
+        if not isinstance(pe_obj, pefile.PE):
+            raise TypeError("Invalid input provided: not a pefile.PE object")
+
+        return cls(pe_obj, file_path=None)
 
     def _parse_info(self):
         """Internal method to extract file info string table."""
@@ -255,7 +276,7 @@ class PortExec:
         return hashlib.sha1(self.get_content()).hexdigest()
 
     def get_content(self):
-        return Path(self.file_path).read_bytes()
+        return self.handle.write()
 
     def get_handle(self):
         return self.handle

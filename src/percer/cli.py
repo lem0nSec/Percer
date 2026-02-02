@@ -1,8 +1,9 @@
-import percer.analyzer as alz
-import percer.printer
 import argparse
 import sys
 import os
+from percer.analyzer import PortExec as pex
+# from percer.virustotal import VirusTotal as vttl
+from percer.printer import PEPrinter as pep
 from pyfiglet import Figlet
 
 
@@ -22,11 +23,11 @@ def main():
     args = parser.parse_args()
     
     f = Figlet(font='slant')
-    banner = f.renderText("percer.py")
+    banner = f.renderText("percer")
 
     try:
-        portexec = alz.PortExec(args.PE)
-        prt = percer.printer.PEPrinter(portexec)
+        portexec = pex.from_file(args.PE)
+        printer = pep(portexec)
 
         if not args.quiet:
             print(banner)
@@ -35,24 +36,24 @@ def main():
             print(portexec.get_handle())
 
         elif args.exports:
-            prt.print_header()
-            prt.print_exports()
+            printer.print_header()
+            printer.print_exports()
 
         elif args.imports:
-            prt.print_header()
-            prt.print_imports()
+            printer.print_header()
+            printer.print_imports()
 
         elif args.sections:
-            prt.print_header()
-            prt.print_sections()
+            printer.print_header()
+            printer.print_sections()
 
         elif args.certificates:
-            prt.print_header()
-            prt.print_certificates()
+            printer.print_header()
+            printer.print_certificates()
 
         else:
-            prt.print_header()
-            prt.print_information()
+            printer.print_header()
+            printer.print_information()
 
     except FileNotFoundError:
         print(f"[ERROR] File not found: {args.PE}")
