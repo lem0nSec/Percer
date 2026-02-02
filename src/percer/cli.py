@@ -2,8 +2,8 @@ import argparse
 import sys
 import os
 from percer.analyzer import PortExec as pex
+from percer.analyzer import PEPrinter as pep
 # from percer.virustotal import VirusTotal as vttl
-from percer.printer import PEPrinter as pep
 from pyfiglet import Figlet
 
 
