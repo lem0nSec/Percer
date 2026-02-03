@@ -23,28 +23,14 @@ class VirusTotal:
 		if self.client:
 			self.client.close()
 
-	def get_hash_content(self, hash):
+	def to_bytes(self, hash):
 		file_stream = io.BytesIO()
-
 		self.client.download_file(hash, file_stream)
-
 		return file_stream.getvalue()
 
-	def object_to_bytes(self, vt_object):
-		if not isinstance(vt_object, vt.object.Object):
-			raise ValueError("Object is not of type vt.object.Object")
-
-		file_stream = io.BytesIO()
-
-		self.client.download_file(vt_object.id, file_stream)
-
-		return file_stream.getvalue()
-
-	def object_to_file(self, vt_object, file_path):
-		self.client.download_file(vt_object.id, file_path)
-
-	def download_file(self, hash, file_path):
-		self.client.download_file(hash, file_path)
+	def to_file(self, hash, file_path):
+		with open(file_path, 'wb') as f:
+			self.client.download_file(hash, f)
 
 	def query_by_hash(self, hash):
 		try:

@@ -1,6 +1,7 @@
 import hashlib
 import pefile
 import os
+import io
 from pathlib import Path
 from cryptography.hazmat.primitives import hashes
 from cryptography import x509
@@ -109,28 +110,36 @@ class PortExec:
 
         return hasher.hexdigest()
 
+
+    # def pdb(self):
+    #     if not hasattr(self.handle, 'DIRECTORY_ENTRY_DEBUG'):
+    #         return ''
+
+    #     for debug_entry in self.handle.DIRECTORY_ENTRY_DEBUG:
+    #         dbg_type = debug_entry.struct.Type
+    #         dbg_offset = debug_entry.struct.PointerToRawData
+
+    #         if dbg_type == 2:
+    #             raw_data = self.handle.__data__
+
+    #             if raw_data[dbg_offset : dbg_offset + 4] == b'RSDS':
+    #                 path_start = dbg_offset + 24
+    #                 path_end = raw_data.find('\x00', path_start)
+
+    #                 if path_end != -1:
+    #                     pdb_bytes = raw_data[path_start:path_end]
+    #                     return pdb_bytes.decode(errors='ignore')
+
+    #     return ''
+
+
     def pdb(self):
-        if not hasattr(self.handle, 'DIRECTORY_ENTRY_DEBUG'):
-            return ''
+        if hasattr(self.handle, 'DIRECTORY_ENTRY_DEBUG'):
+            for entry in self.handle.DIRECTORY_ENTRY_DEBUG:
+                if hasattr(entry, 'entry') and hasattr(entry.entry, 'PdbFileName'):
+                    return entry.entry.PdbFileName.decode(errors='ignore')
 
-        for debug_entry in self.handle.DIRECTORY_ENTRY_DEBUG:
-            dbg_type = debug_entry.struct.Type
-            dbg_offset = debug_entry.struct.PointerToRawData
-
-            if dbg_type == 2:
-                pe_data = self.handle.__data__
-                pe_data.seek(dbg_offset)
-                data = pe_data.read(24)  # RSDS header + guid + age
-
-                if data[0:4] == b'RSDS':
-                    pdb_bytes = b''
-                    while True:
-                        byte = pe_data.read(1)
-                        if byte == b'\x00' or byte == b'':
-                            break
-                        pdb_bytes += byte
-
-                return pdb_bytes.decode(errors='ignore')
+        return ''
 
     def signed_status(self):
         if (self.handle.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']]).VirtualAddress != 0:
@@ -278,6 +287,12 @@ class PortExec:
     def get_content(self):
         return self.handle.write()
 
+    def get_disk_size(self):
+        return len(self.get_content())
+
+    def get_memory_size(self):
+        return self.handle.OPTIONAL_HEADER.SizeOfImage
+
     def get_handle(self):
         return self.handle
 
@@ -285,12 +300,15 @@ class PortExec:
         self.handle = handle
 
 
-class PEPrinter:
+class PexPrinter:
     def __init__(self, handle):
         self.object = handle
 
     def print_header(self):
-        print(f"Input PE\t: {os.path.basename(self.object.file_path)}\n" + "="*60)
+        if self.object.file_path:
+            print(f"Input PE\t: {os.path.basename(self.object.file_path)}\n" + "="*60)
+        else:
+            print(f"Input PE\t: {self.object.sha256()}\n" + "="*60)
 
     def print_information(self):
         # We'll use a standard width for labels to keep things clean

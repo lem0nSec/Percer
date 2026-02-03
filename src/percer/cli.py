@@ -2,8 +2,8 @@ import argparse
 import sys
 import os
 from percer.analyzer import PortExec as pex
-from percer.analyzer import PEPrinter as pep
-# from percer.virustotal import VirusTotal as vttl
+from percer.analyzer import PexPrinter as pep
+from percer.virustotal import VirusTotal as vtl
 from pyfiglet import Figlet
 
 
@@ -12,7 +12,10 @@ def main():
         prog=f'{os.path.basename(sys.argv[0])} <PE file>',
         epilog=f'Example (no options):\n {os.path.basename(sys.argv[0])} C:\\Windows\\System32\\kernel32.dll')
 
-    parser.add_argument('PE')
+    #parser.add_argument('PE')
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('-F', '--file', metavar="FILE", help='Target file')
+    group.add_argument('-H', '--hash', metavar="HASH", help='Target hash (VirusTotal Search requires VT_API_KEY)')
     parser.add_argument('-a', '--all', required=False, action='store_true', help='Show all info')
     parser.add_argument('-e', '--exports', required=False, action='store_true', help='List exports')
     parser.add_argument('-i', '--imports', required=False, action='store_true', help='List imports')
@@ -26,14 +29,21 @@ def main():
     banner = f.renderText("percer")
 
     try:
-        portexec = pex.from_file(args.PE)
-        printer = pep(portexec)
+        if args.file:
+            pex_obj = pex.from_file(args.file)
+            
+        elif args.hash:
+            with vtl() as v:
+                v_obj = v.to_bytes(args.hash)
+                pex_obj = pex.from_bytes(v_obj)
+
+        printer = pep(pex_obj)
 
         if not args.quiet:
             print(banner)
 
         if args.all:
-            print(portexec.get_handle())
+            print(pex_obj.get_handle())
 
         elif args.exports:
             printer.print_header()
@@ -56,7 +66,7 @@ def main():
             printer.print_information()
 
     except FileNotFoundError:
-        print(f"[ERROR] File not found: {args.PE}")
+        print(f"[ERROR] File not found: {args.file}")
         sys.exit(1)
     except ValueError as e:
         print(f"[ERROR] Invalid PE File: {e}")

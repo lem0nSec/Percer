@@ -6,6 +6,7 @@ objects and extracts their signature information.
 """
 
 from percer.analyzer import PortExec as pex
+from percer.analyzer import PexPrinter as pep
 from percer.virustotal import VirusTotal as vtl
 
 # HW.sys vulnerable driver
@@ -18,11 +19,11 @@ with vtl() as vt_scanner:
 		if vt_objects is not None:
 			print(f"[*] Got {len(vt_objects)} samples from VirusTotal")
 			for sample in vt_objects:
-				content = vt_scanner.object_to_bytes(sample)
+				content = vt_scanner.to_bytes(sample.id)
 				pex_object = pex.from_bytes(content)
 				if pex_object.signed_status() == True:
 					print(f"[*] Printing signatures information of {pex_object.sha256()}")
-					print(pex_object.certificates())
+					pep(pex_object).print_certificates()
 		else:
 			print("Empty")
 	except Exception as E:
