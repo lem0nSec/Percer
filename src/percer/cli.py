@@ -36,15 +36,15 @@ def main():
             pex_obj = pex.from_file(args.file)
             
         elif args.hash:
-            with vtl() as v:
-                v_obj_content = v.get_content(args.hash)
+            with vtl() as scanner:
+                v_obj_content = scanner.get_content(args.hash)
                 pex_obj = pex.from_bytes(v_obj_content)
 
         elif args.authentihash:
-            with vtl() as v:
-                v_obj = v.query_by_pesha256(args.authentihash)
+            with vtl() as scanner:
+                v_obj = scanner.query_by_pesha256(args.authentihash)
                 if v_obj:
-                    v_obj_content = v.get_content(v_obj[0].id)
+                    v_obj_content = scanner.get_content(v_obj[0].id)
                     pex_obj = pex.from_bytes(v_obj_content)
 
         printer = pep(pex_obj)
