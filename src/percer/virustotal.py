@@ -76,3 +76,19 @@ class VirusTotal:
 			print(f"VirusTotal exception has occurred: {E}")
 		except Exception as E:
 			print(f"Exception has occurred: {E}")
+
+	def query_custom(self, query):
+		samples = []
+
+		try:
+			iterator = self.client.iterator('/intelligence/search', params={'query':query})
+
+			for object_ in iterator:
+				samples.append(object_)
+
+			return samples
+
+		except vt.error.APIError as E:
+			print(f"VirusTotal exception has occurred: {E}")
+		except Exception as E:
+			print(f"Exception has occurred: {E}")
