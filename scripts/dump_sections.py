@@ -1,5 +1,5 @@
 import sys
-from percer.analyzer import PortExec, PEPrinter
+from percer.analyzer import PortExec, PexPrinter
 
 
 if len(sys.argv) < 2:
@@ -7,5 +7,4 @@ if len(sys.argv) < 2:
     sys.exit(1)
 
 obj = PortExec.from_file(sys.argv[1])
-prt = PEPrinter(obj)
-prt.print_sections()
+PexPrinter(obj).print_sections()

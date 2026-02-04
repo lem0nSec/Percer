@@ -19,7 +19,7 @@ with vtl() as vt_scanner:
 		if vt_objects is not None:
 			print(f"[*] Got {len(vt_objects)} samples from VirusTotal")
 			for sample in vt_objects:
-				content = vt_scanner.to_bytes(sample.id)
+				content = vt_scanner.get_content(sample.id)
 				pex_object = pex.from_bytes(content)
 				if pex_object.signed_status() == True:
 					print(f"[*] Printing signatures information of {pex_object.sha256()}")

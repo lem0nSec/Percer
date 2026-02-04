@@ -23,14 +23,14 @@ class VirusTotal:
 		if self.client:
 			self.client.close()
 
-	def to_bytes(self, hash):
-		file_stream = io.BytesIO()
-		self.client.download_file(hash, file_stream)
-		return file_stream.getvalue()
-
-	def to_file(self, hash, file_path):
-		with open(file_path, 'wb') as f:
-			self.client.download_file(hash, f)
+	def get_content(self, hash, path=None):
+		if path is None:
+			file_stream = io.BytesIO()
+			self.client.download_file(hash, file_stream)
+			return file_stream.getvalue()
+		else:
+			with open(path, 'wb') as f:
+				self.client.download_file(hash, f)
 
 	def query_by_hash(self, hash):
 		try:

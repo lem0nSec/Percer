@@ -1,6 +1,6 @@
 import sys
 import os
-from percer.analyzer import VirusTotal as vtl
+from percer.virustotal import VirusTotal as vtl
 
 def main():
     if len(sys.argv) < 3:
@@ -9,11 +9,10 @@ def main():
 
     with vtl() as v:
         try:
-            v.to_file(sys.argv[1], sys.argv[2])
+            v.get_content(sys.argv[1], sys.argv[2])
         except Exception as E:
             print(f"Exception has occurred: {E}")
             sys.exit(1)
 
 if __name__ == '__main__':
     main()
-

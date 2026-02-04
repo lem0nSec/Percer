@@ -1,3 +1,4 @@
+import argparse
 import sys
 import os
 from collections import Counter, defaultdict
@@ -6,11 +7,19 @@ from percer.virustotal import VirusTotal as vtl
 
 
 def main():
-	if len(sys.argv) < 2:
-		print(f"Usage: {os.path.basename(sys.argv[0])} hashes.txt")
-		sys.exit(1)
+	parser = argparse.ArgumentParser(description=f"{os.path.basename(sys.argv[0])} compares the signatures of the specified hashes/authentihashes")
 
-	with open(sys.argv[1], 'r') as f:
+	group = parser.add_mutually_exclusive_group(required=True)
+	group.add_argument('-A', '--authentihashes', action='store_true', help='File containing pesha256 hashes')
+	group.add_argument('-H', '--hashes', action='store_true', help='File containing sha256/sha1/md5 hashes')
+	parser.add_argument('filename', help='File containing the hashes')
+	args = parser.parse_args()
+
+	if not os.path.exists(args.filename):
+		raise FileNotFoundError(f"File {args.filename} not found")
+
+
+	with open(args.filename, 'r') as f:
 		samples = [line.strip() for line in f]
 
 	certificates = {}
@@ -19,15 +28,31 @@ def main():
 		for sample in samples:
 			try:
 				print(f"[*] Sample {sample}", end='')
-				content = scanner.to_bytes(sample)
+				if args.hashes:
+					content = scanner.get_content(sample)
+				else:
+					v_obj = scanner.query_by_pesha256(sample)
+					if v_obj:
+						content = scanner.get_content(v_obj[0].id)
+					else:
+						content = b''
+
 				if content:
 					print(" | Available on VT", end='')
 					pex_object = pex.from_bytes(content)
 					if pex_object.signed_status() == True:
 						print(" | is signed")
-						certificates[pex_object.sha256()] = []
+						if args.hashes:
+							certificates[pex_object.sha256()] = []
+						else:
+							certificates[pex_object.pesha256()] = []
+
 						for i, cert in enumerate(pex_object.certificates()):
-							certificates[pex_object.sha256()].append(cert['thumbprint'])
+							if args.hashes:
+								certificates[pex_object.sha256()].append(cert['thumbprint'])
+							else:
+								certificates[pex_object.pesha256()].append(cert['thumbprint'])
+
 							if not cert['thumbprint'] in publishers:
 								publishers[cert['thumbprint']] = cert['subject']
 					else:

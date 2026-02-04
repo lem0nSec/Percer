@@ -12,10 +12,10 @@ def main():
         prog=f'{os.path.basename(sys.argv[0])} <PE file>',
         epilog=f'Example (no options):\n {os.path.basename(sys.argv[0])} C:\\Windows\\System32\\kernel32.dll')
 
-    #parser.add_argument('PE')
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-F', '--file', metavar="FILE", help='Target file')
     group.add_argument('-H', '--hash', metavar="HASH", help='Target hash (VirusTotal Search requires VT_API_KEY)')
+    group.add_argument('-A', '--authentihash', metavar="AUTHENTIHASH", help='Target hash (VirusTotal Search requires VT_API_KEY)')
     parser.add_argument('-a', '--all', required=False, action='store_true', help='Show all info')
     parser.add_argument('-e', '--exports', required=False, action='store_true', help='List exports')
     parser.add_argument('-i', '--imports', required=False, action='store_true', help='List imports')
@@ -28,19 +28,26 @@ def main():
     f = Figlet(font='slant')
     banner = f.renderText("percer")
 
+    if not args.quiet:
+        print(banner)
+
     try:
         if args.file:
             pex_obj = pex.from_file(args.file)
             
         elif args.hash:
             with vtl() as v:
-                v_obj = v.to_bytes(args.hash)
-                pex_obj = pex.from_bytes(v_obj)
+                v_obj_content = v.get_content(args.hash)
+                pex_obj = pex.from_bytes(v_obj_content)
+
+        elif args.authentihash:
+            with vtl() as v:
+                v_obj = v.query_by_pesha256(args.authentihash)
+                if v_obj:
+                    v_obj_content = v.get_content(v_obj[0].id)
+                    pex_obj = pex.from_bytes(v_obj_content)
 
         printer = pep(pex_obj)
-
-        if not args.quiet:
-            print(banner)
 
         if args.all:
             print(pex_obj.get_handle())
