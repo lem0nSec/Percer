@@ -4,6 +4,7 @@ import os
 from percer.analyzer import PortExec as pex
 from percer.analyzer import PexPrinter as pep
 from percer.virustotal import VirusTotal as vtl
+from percer.logger import Logger
 from pyfiglet import Figlet
 
 
@@ -28,8 +29,12 @@ def main():
     f = Figlet(font='slant')
     banner = f.renderText("percer")
 
+    # Do not print the banner if run in quiet mode
     if not args.quiet:
         print(banner)
+
+    # Initialize logger
+    log = Logger("percer")
 
     try:
         if args.file:
@@ -73,13 +78,13 @@ def main():
             printer.print_information()
 
     except FileNotFoundError:
-        print(f"[ERROR] File not found: {args.file}")
+        log.err(f"File not found: {args.file}")
         sys.exit(1)
     except ValueError as e:
-        print(f"[ERROR] Invalid PE File: {e}")
+        log.err(f"Invalid PE File: {e}")
         sys.exit(1)
     except Exception as e:
-        print(f"[CRITICAL] Unexpected error: {e}")
+        log.err(f"Unexpected error: {e}")
         sys.exit(1)
 
     return 0
