@@ -10,8 +10,7 @@ from pyfiglet import Figlet
 
 def main():
     parser = argparse.ArgumentParser(
-        prog=f'{os.path.basename(sys.argv[0])} <PE file>',
-        epilog=f'Example (no options):\n {os.path.basename(sys.argv[0])} C:\\Windows\\System32\\kernel32.dll')
+        prog=f'{os.path.basename(sys.argv[0])} <PE file>')
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-F', '--file', metavar="FILE", help='Target file')
