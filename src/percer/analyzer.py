@@ -110,29 +110,6 @@ class PortExec:
 
         return hasher.hexdigest()
 
-
-    # def pdb(self):
-    #     if not hasattr(self.handle, 'DIRECTORY_ENTRY_DEBUG'):
-    #         return ''
-
-    #     for debug_entry in self.handle.DIRECTORY_ENTRY_DEBUG:
-    #         dbg_type = debug_entry.struct.Type
-    #         dbg_offset = debug_entry.struct.PointerToRawData
-
-    #         if dbg_type == 2:
-    #             raw_data = self.handle.__data__
-
-    #             if raw_data[dbg_offset : dbg_offset + 4] == b'RSDS':
-    #                 path_start = dbg_offset + 24
-    #                 path_end = raw_data.find('\x00', path_start)
-
-    #                 if path_end != -1:
-    #                     pdb_bytes = raw_data[path_start:path_end]
-    #                     return pdb_bytes.decode(errors='ignore')
-
-    #     return ''
-
-
     def pdb(self):
         if hasattr(self.handle, 'DIRECTORY_ENTRY_DEBUG'):
             for entry in self.handle.DIRECTORY_ENTRY_DEBUG:
