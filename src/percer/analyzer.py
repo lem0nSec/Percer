@@ -118,14 +118,31 @@ class PortExec:
 
         return ''
 
-    def signed_status(self):
-        if (self.handle.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']]).VirtualAddress != 0:
-            return True
-        else:
+    def is_signed(self):
+        dir_index = pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']
+        dir_entry = self.handle.OPTIONAL_HEADER.DATA_DIRECTORY[dir_index]
+
+        if dir_entry.VirtualAddress == 0 or dir_entry.Size == 0:
             return False
 
+        file_size = len(self.handle.__data__)
+
+        if dir_entry.VirtualAddress >= file_size:
+            return False
+
+        if dir_entry.VirtualAddress + dir_entry.Size > file_size:
+            return False
+
+        return True
+
+    # def signed_status(self):
+    #     if (self.handle.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']]).VirtualAddress != 0:
+    #         return True
+    #     else:
+    #         return False
+
     def certificates(self):
-        if self.signed_status == False:
+        if self.is_signed() == False:
             raise ValueError(f"File is not signed.")
         
         certificates = []
@@ -306,7 +323,7 @@ class PexPrinter:
             print(f"\t* {metadata:<{sub_w}}: {value}")
 
         print(f"\t* {'PDB':<{sub_w}}: {self.object.pdb()}")
-        print(f"{'Signed':<{w}}: {self.object.signed_status()}")
+        print(f"{'Signed':<{w}}: {self.object.is_signed()}")
         print(f"{'Machine':<{w}}: {self.object.architecture}")
         print(f"{'Subsystem':<{w}}: {self.object.subsystem}")
 
@@ -330,7 +347,7 @@ class PexPrinter:
             print(f"* {export_name}")
 
     def print_certificates(self):
-        if self.object.signed_status() == False:
+        if self.object.is_signed() == False:
             raise ValueError("File is not signed.")
             
         print("Dumping certificates:\n")

@@ -30,7 +30,7 @@ def main():
 				log.info(f"Got {len(vt_objects)} samples from VirusTotal")
 				content = vt_scanner.get_content(vt_objects[0].id)
 				pex_object = pex.from_bytes(content)
-				if pex_object.signed_status() == True:
+				if pex_object.is_signed() == True:
 					log.info(f"Printing signatures information of {pex_object.sha256()}")
 					for i, cert in enumerate(pex_object.certificates(), 1):
 						log.info(f"Thumbprint: {cert['thumbprint']} | Sign. Hash {cert['signature_hash']} | Subject: {cert['subject'][:20]} | B {cert['not_before']} A {cert['not_after']}")

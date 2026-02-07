@@ -40,7 +40,7 @@ def main():
 				if content:
 					print(" | Available on VT", end='')
 					pex_object = pex.from_bytes(content)
-					if pex_object.signed_status() == True:
+					if pex_object.is_signed() == True:
 						print(" | is signed")
 						if args.hashes:
 							certificates[pex_object.sha256()] = []
