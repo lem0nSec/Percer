@@ -27,7 +27,7 @@ def main():
 	with vtl() as scanner:
 		for sample in samples:
 			try:
-				print(f"Sample {sample}", end='')
+				print(f"Sample {sample}", end='', flush=True)
 				if args.hashes:
 					content = scanner.get_content(sample)
 				else:
