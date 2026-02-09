@@ -61,7 +61,7 @@ def main():
     with vtl() as scanner:
         for sample in samples:
             try:
-                print(f"Sample {sample}", end='', flush=True)
+                log.raw(f"Sample {sample}", end='')
                 
                 # 1. Fetch
                 if args.hashes:
@@ -71,13 +71,13 @@ def main():
                     content = scanner.get_content(v_obj[0].id) if v_obj else b''
 
                 if content:
-                    print(" | Available on VT", end='')
+                    log.raw(" | Available on VT", end='')
                     
                     # 2. Parse
                     pex_object = pex.from_bytes(content)
                     
                     if pex_object.is_signed():
-                        print(" | Is signed")
+                        log.raw(" | Is signed")
                         current_hash = pex_object.sha256() if args.hashes else pex_object.pesha256()
                         
                         matched_any_cert = False
@@ -120,10 +120,10 @@ def main():
                             excluded_samples.append({'hash': current_hash, 'subject': first_subject, 'thumbprint': first_thumbprint})
 
                     else:
-                        print(" | Not signed")
+                        log.raw(" | Not signed")
                         unsigned_samples.append(sample)
                 else:
-                    print(" | Not available on VT")
+                    log.raw(" | Not available on VT")
                     not_found_samples.append(sample)
 
             except Exception as E:
@@ -152,10 +152,10 @@ def main():
     sorted_publishers = sorted(publisher_groups.items(), key=lambda item: len(item[1]), reverse=True)
     
     if not sorted_publishers and filter_desc != "None":
-        print(f"[-] No signed samples found matching: {filter_desc}\n")
+        log.err(f"No signed samples found matching: {filter_desc}\n")
 
     for publisher, hashes in sorted_publishers:
-        print(f"[+] Publisher: {publisher}")
+        log.success(f"Publisher: {publisher}")
         print(f"    Count    : {len(hashes)}")
         
         if len(publisher_raw_subjects[publisher]) > 1:

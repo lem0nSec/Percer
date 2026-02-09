@@ -3,7 +3,8 @@ import sys
 import os
 from collections import Counter, defaultdict
 from percer.analyzer import PortExec as pex 
-from percer.virustotal import VirusTotal as vtl 
+from percer.virustotal import VirusTotal as vtl
+from percer.logger import Logger
 
 
 def main():
@@ -14,6 +15,8 @@ def main():
 	group.add_argument('-H', '--hashes', action='store_true', help='File containing sha256/sha1/md5 hashes')
 	parser.add_argument('filename', help='File containing the hashes')
 	args = parser.parse_args()
+
+	log = Logger('percer')
 
 	if not os.path.exists(args.filename):
 		raise FileNotFoundError(f"File {args.filename} not found")
@@ -27,7 +30,7 @@ def main():
 	with vtl() as scanner:
 		for sample in samples:
 			try:
-				print(f"Sample {sample}", end='', flush=True)
+				log.raw(f"Sample {sample}", end='')
 				if args.hashes:
 					content = scanner.get_content(sample)
 				else:
@@ -38,10 +41,10 @@ def main():
 						content = b''
 
 				if content:
-					print(" | Available on VT", end='')
+					log.raw(" | Available on VT", end='')
 					pex_object = pex.from_bytes(content)
 					if pex_object.is_signed() == True:
-						print(" | is signed")
+						log.raw(" | is signed")
 						if args.hashes:
 							certificates[pex_object.sha256()] = []
 						else:
@@ -56,12 +59,13 @@ def main():
 							if not cert['thumbprint'] in publishers:
 								publishers[cert['thumbprint']] = cert['subject']
 					else:
-						print(" | Not signed")
+						log.raw(" | Not signed")
 				else:
-					print(" | Not available on VT")
+					log.raw(" | Not available on VT")
 
 			except Exception as E:
-				print(f"Exception has occurred: {E}")
+				log.err(f"Exception has occurred: {E}")
+				sys.exit(1)
 
 	hash_to_lists = defaultdict(list)
 
@@ -72,7 +76,7 @@ def main():
 	sorted_items = sorted(hash_to_lists.items(), key=lambda item: len(item[1]), reverse=True)
 
 	for h, lists in sorted_items:
-		print(f"[+] Thumbprint: {h} - {publishers[h][:20]}... ({len(lists)} occurrences)")
+		log.success(f"Thumbprint: {h} - {publishers[h][:20]}... ({len(lists)} occurrences)")
 		for l in lists:
 			print(f"   -> {l}")
 		print("-" * 50)

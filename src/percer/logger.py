@@ -16,6 +16,11 @@ class Logger:
 			# handler.setFormatter(formatter)
 
 			self.logger.addHandler(handler)
+		else:
+			self.handler = self.logger.handlers[0]
+
+	def success(self, message: str):
+		self.logger.info(f"[+] {message}")
 
 	def info(self, message: str):
 		self.logger.info(f"[*] {message}")
@@ -25,3 +30,11 @@ class Logger:
 
 	def err(self, message: str):
 		self.logger.error(f"[-] {message}")
+
+	def raw(self, message: str, end: str='\n', flush: bool=True):
+		try:
+			self.handler.stream.write(message + end)
+			if flush:
+				self.handler.flush()
+		except Exception:
+			print(message, end=end, flush=flush)
