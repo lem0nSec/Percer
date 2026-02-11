@@ -24,7 +24,7 @@ def main():
 		v_objects = scanner.query_custom(args.query)
 		if v_objects:
 			if len(v_objects) > 100:
-				log.info(f"Found {len(v_objects)} samples. Only analysing first 100 results.")
+				log.info(f"Found {len(v_objects)} samples. Only analysing first 100 PE results.")
 			else:
 				log.info(f"Found {len(v_objects)} samples")
 			for object_ in v_objects:
@@ -39,10 +39,14 @@ def main():
 						count += 1
 						log.info(f"Sha256: {sha256} | Authentihash: {pesha256}")
 					else:
-						pex_object = pex.from_bytes(scanner.get_content(object_.id))
-						count += 1
-						print("-"*100)
-						pep(pex_object).print_information()
+						try:
+							pex_object = pex.from_bytes(scanner.get_content(object_.id))
+							count += 1
+							print("-"*100)
+							pep(pex_object).print_information()
+						except:
+							print(f"{object_.id} is not a PE file")
+							pass 
 				except Exception as E:
 					raise ValueError(f"Exception raised: {E}")
 
