@@ -1,18 +1,28 @@
 import sys
 import os
+import argparse
 from percer.virustotal import VirusTotal as vtl
+from percer.logger import Logger
+
 
 def main():
-    if len(sys.argv) < 3:
-        print(f"Usage: {os.path.basename(sys.argv[0])} hash path")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description=f"{os.path.basename(sys.argv[0])} downloads a file from VirusTotal")
 
-    with vtl() as v:
+    parser.add_argument('-H', '--hash', required=True, help='sha256/sha1/md5 or authentihash')
+    parser.add_argument('-s', '--save', required=True, help='destination path')
+    args = parser.parse_args()
+
+    log = Logger('percer')
+
+    with vtl() as scanner:
         try:
-            v.get_content(sys.argv[1], sys.argv[2])
+            file_hash = scanner.resolve_hash(args.hash)
+            v_object = scanner.query_by_hash(file_hash)
+            v_size = v_object.size
+            log.info(f"Downloading {file_hash} of size {v_size} mb...")
+            scanner.get_content(file_hash, args.save)
         except Exception as E:
-            print(f"Exception has occurred: {E}")
-            sys.exit(1)
+            raise ValueError(f"Exception has occurred: {E}")
 
 if __name__ == '__main__':
     main()

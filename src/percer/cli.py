@@ -1,8 +1,8 @@
 import argparse
 import sys
 import os
-from percer.analyzer import PortExec as pex
-from percer.analyzer import PexPrinter as pep
+from percer.analyzer import PEAnalyzer as pex
+from percer.analyzer import PEPrinter as pep
 from percer.virustotal import VirusTotal as vtl
 from percer.logger import Logger
 from pyfiglet import Figlet
@@ -47,7 +47,7 @@ def main():
         printer = pep(pex_obj)
 
         if args.all:
-            print(pex_obj.get_handle())
+            print(pex_obj.handle)
 
         elif args.exports:
             printer.print_header()

@@ -2,8 +2,8 @@ import os
 import sys
 import argparse
 from percer.virustotal import VirusTotal as vtl 
-from percer.analyzer import PortExec as pex 
-from percer.analyzer import PexPrinter as pep
+from percer.analyzer import PEAnalyzer as pex 
+from percer.analyzer import PEPrinter as pep
 from percer.logger import Logger
 
 def main():

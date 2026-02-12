@@ -2,7 +2,7 @@ import argparse
 import sys
 import os
 from collections import Counter, defaultdict
-from percer.analyzer import PortExec as pex 
+from percer.analyzer import PEAnalyzer as pex 
 from percer.virustotal import VirusTotal as vtl
 from percer.logger import Logger
 
@@ -43,18 +43,18 @@ def main():
 				if content:
 					log.raw(" | Available on VT", end='')
 					pex_object = pex.from_bytes(content)
-					if pex_object.is_signed() == True:
+					if pex_object.is_signed == True:
 						log.raw(" | is signed")
 						if args.hashes:
-							certificates[pex_object.sha256()] = []
+							certificates[pex_object.sha256] = []
 						else:
-							certificates[pex_object.pesha256()] = []
+							certificates[pex_object.pesha256] = []
 
-						for i, cert in enumerate(pex_object.certificates()):
+						for i, cert in enumerate(pex_object.certificates):
 							if args.hashes:
-								certificates[pex_object.sha256()].append(cert['thumbprint'])
+								certificates[pex_object.sha256].append(cert['thumbprint'])
 							else:
-								certificates[pex_object.pesha256()].append(cert['thumbprint'])
+								certificates[pex_object.pesha256].append(cert['thumbprint'])
 
 							if not cert['thumbprint'] in publishers:
 								publishers[cert['thumbprint']] = cert['subject']

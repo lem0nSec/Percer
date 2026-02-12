@@ -12,12 +12,12 @@ def main():
 	log = Logger('percer')
 
 	try:
-		with vtl() as v:
-			v_obj = v.query_by_pesha256(args.authentihash)
+		with vtl() as scanner:
+			v_obj = scanner.query_by_pesha256(args.authentihash)
 			for sample in v_obj:
 				log.info(f"sha256: {sample.sha256}")
 	except Exception as E:
-		sys.exit(1)
+		raise ValueError(f"Exception has occurred: {E}")
 
 if __name__ == '__main__':
 	main()

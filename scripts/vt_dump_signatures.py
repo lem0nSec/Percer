@@ -8,37 +8,30 @@ objects and extracts their signature information.
 import argparse
 import sys
 import os
-from percer.analyzer import PortExec as pex
+from percer.analyzer import PEAnalyzer as pex
+from percer.analyzer import PEPrinter as pep
 from percer.virustotal import VirusTotal as vtl
 from percer.logger import Logger
 
 
 def main():
 	parser = argparse.ArgumentParser(description=f"{os.path.basename(sys.argv[0])} dumps the signature information of a given authentihash - PeSha256")
-	parser.add_argument('-A', '--authentihash', required=True, metavar='AUTHENTIHASH', help='Input PeSha256 hash')
+	parser.add_argument('-H', '--hash', required=True, metavar='HASH', help='Input PeSha256 hash')
 	args = parser.parse_args()
 
 	log = Logger('percer')
 
-	target_authentihash = args.authentihash
-
-	with vtl() as vt_scanner:
-		log.info(f"Targeting sample {target_authentihash}")
+	with vtl() as scanner:
+		log.info(f"Targeting sample {args.hash}")
 		try:
-			vt_objects = vt_scanner.query_by_pesha256(target_authentihash)
-			if vt_objects:
-				log.info(f"Got {len(vt_objects)} samples from VirusTotal")
-				content = vt_scanner.get_content(vt_objects[0].id)
-				pex_object = pex.from_bytes(content)
-				if pex_object.is_signed() == True:
-					log.info(f"Printing signatures information of {pex_object.sha256()}")
-					for i, cert in enumerate(pex_object.certificates(), 1):
-						log.info(f"Thumbprint: {cert['thumbprint']} | Sign. Hash {cert['signature_hash']} | Subject: {cert['subject'][:20]} | B {cert['not_before']} A {cert['not_after']}")
+			pex_object = pex.from_bytes(scanner.get_content(scanner.resolve_hash(args.hash)))
+			if pex_object.is_signed == True:
+				log.info(f"Printing signatures of {pex_object.sha256}")
+				pep(pex_object).print_certificates()
 			else:
-				log.err("0 samples found")
-
+				log.err("The sample is unsigned")
 		except Exception as E:
-			print(f"Exception has occurred: {E}")
+			raise ValueError(f"Exception has occurred: {E}")
 
 if __name__ == '__main__':
 	main()

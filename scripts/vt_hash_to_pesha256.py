@@ -12,11 +12,11 @@ def main():
 	log = Logger('percer')
 
 	try:
-		with vtl() as v:
-			v_obj = v.query_by_hash(args.hash)
+		with vtl() as scanner:
+			v_obj = scanner.query_by_hash(args.hash)
 			log.info(f'Authentihash: {v_obj.authentihash}')
 	except Exception as E:
-		sys.exit(1)
+		raise ValueError(f"Exception has occurred: {E}")
 
 if __name__ == '__main__':
 	main()

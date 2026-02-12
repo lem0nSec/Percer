@@ -1,361 +1,415 @@
 import hashlib
 import pefile
 import os
-import io
-from pathlib import Path
+import sys
+from functools import cached_property
+from typing import Dict, List, Optional, Union, Any, TextIO
 from cryptography.hazmat.primitives import hashes
 from cryptography import x509
 from asn1crypto import cms
 
 from .constants import SUBSYSTEMS, ARCHITECTURES, CHARACTERISTICS
 
-class PortExec:
-    def __init__(self, pe_obj, file_path=None):
-        self.handle = pe_obj
+class PEAnalyzer:
+    """
+    Wrapper for pefile to provide easy access to static analysis data.
+    """
+    def __init__(self, pe_obj: pefile.PE, file_path: Optional[str] = None):
+        self._pe = pe_obj
         self.file_path = file_path
 
-        self._parse_info()
-        self._parse_headers()
-
     @classmethod
-    def from_file(cls, file_path):
+    def from_file(cls, file_path: str):
         if not os.path.isfile(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
-
-        try:
-            pe = pefile.PE(file_path)
-        except Exception as E:
-            raise ValueError(f"Exception has occurred: {E}")
-
+        # Let pefile exceptions bubble up naturally
+        pe = pefile.PE(file_path)
         return cls(pe, file_path=file_path)
 
     @classmethod
-    def from_bytes(cls, data):
-        try:
-            pe = pefile.PE(data=data)
-        except Exception as E:
-            raise ValueError(f"Exception has occurred: {E}")
-
+    def from_bytes(cls, data: bytes):
+        pe = pefile.PE(data=data)
         return cls(pe, file_path=None)
 
-    @classmethod
-    def from_pefile_object(cls, pe_obj):
-        if not isinstance(pe_obj, pefile.PE):
-            raise TypeError("Invalid input provided: not a pefile.PE object")
+    @property
+    def handle(self) -> pefile.PE:
+        """Direct access to the underlying pefile object."""
+        return self._pe
 
-        return cls(pe_obj, file_path=None)
+    @cached_property
+    def content(self) -> bytes:
+        """
+        Returns the raw bytes of the file.
+        Uses cached __data__ if available to avoid expensive rebuilds.
+        Fallback to write() for compatibility.
+        """
+        if hasattr(self._pe, '__data__') and self._pe.__data__:
+            return self._pe.__data__
+        return self._pe.write()
 
-    def _parse_info(self):
-        """Internal method to extract file info string table."""
-        self.information = {}
+    @cached_property
+    def file_information(self) -> Dict[str, str]:
+        """Extracts file information (original filename, product name, etc)"""
         info = {}
+        if not hasattr(self._pe, 'FileInfo'):
+            return info
+
+        for fileinfo in self._pe.FileInfo:
+            for entry in fileinfo:
+                if entry.Key != b'StringFileInfo':
+                    continue
+                for st in entry.StringTable:
+                    for key, value in st.entries.items():
+                        try:
+                            # Safely decode
+                            k = key.decode('utf-8')
+                            v = value.decode('utf-8')
+                            info[k] = v
+                        except UnicodeDecodeError:
+                            continue
+        return info
+
+    # These are properties that return single file information
+    @property
+    def original_filename(self) -> str:
+        return self.file_information.get('OriginalFilename', '')
+
+    @property
+    def file_description(self) -> str:
+        return self.file_information.get('FileDescription', '')
+
+    @property
+    def internal_name(self) -> str:
+        return self.file_information.get('InternalName', '')
+
+    @property
+    def product_name(self) -> str:
+        return self.file_information.get('ProductName', '')
+
+    # It seems that ProductVersion is actually the FileVersion and viceversa
+    @property
+    def product_version(self) -> str:
+        return self.file_information.get('ProductVersion', self.file_information.get('FileVersion', ''))
+
+    @property
+    def file_version(self) -> str:
+        return self.file_information.get('FileVersion', self.file_information.get('ProductVersion', ''))
+
+    @property
+    def architecture(self) -> str:
+        machine = self._pe.FILE_HEADER.Machine
+        return ARCHITECTURES.get(machine, f"Unknown (0x{machine:04x})")
+
+    @property
+    def subsystem(self) -> str:
+        sub = self._pe.OPTIONAL_HEADER.Subsystem
+        return SUBSYSTEMS.get(sub, SUBSYSTEMS.get(0, "Unknown"))
+
+    @property
+    def pe_type(self) -> str:
+        if self._pe.is_exe():
+            return "Executable image - .exe"
+        if self._pe.is_dll():
+            return "Dynamic link library - .dll"
+        if self._pe.is_driver():
+             return "Driver (Native subsystem) - .sys"
+        return "Unknown or Special PE Type"
+
+    @property
+    def is_signed(self) -> bool:
+        """Checks if the Security Directory exists and points to data."""
         try:
-            for fileinfo in self.handle.FileInfo:
-                for entry in fileinfo:
-                    if entry.Key == b'StringFileInfo':
-                        for st in entry.StringTable:
-                            for key, value in st.entries.items():
-                                decoded_key = key.decode('utf-8')
-                                decoded_value = value.decode('utf-8')
-                                if decoded_key in [
-                                        'OriginalFilename', 
-                                        'FileDescription', 
-                                        'ProductName', 
-                                        'InternalName', 
-                                        'FileVersion', 
-                                        'ProductVersion']:
-                                    info[decoded_key] = decoded_value
-        except AttributeError:
-            pass
-
-        self.information['OriginalFilename'] = info['OriginalFilename'] if 'OriginalFilename' in info else ""
-        self.information['FileDescription'] = info['FileDescription'] if 'FileDescription' in info else ""
-        self.information['InternalName'] = info['InternalName'] if 'InternalName' in info else ""
-        self.information['ProductName'] = info['ProductName'] if 'ProductName' in info else ""
-        self.information['ProductVersion'] = info['FileVersion'] if 'FileVersion' in info else ""
-        self.information['FileVersion'] = info['ProductVersion'] if 'ProductVersion' in info else ""
-        
-    def _parse_headers(self):
-        """Internal method to parse header flags."""
-        # Architecture and Subsystem logic using imported constants
-        self.architecture = ARCHITECTURES.get(
-            self.handle.FILE_HEADER.Machine, 
-            f"Unknown (0x{self.handle.FILE_HEADER.Machine:04x})"
-        )
-        self.subsystem = SUBSYSTEMS.get(self.handle.OPTIONAL_HEADER.Subsystem, SUBSYSTEMS[0])
-        
-        # PE Type logic
-        self.pe_type = self.pe_type()
-
-    def _calculate_pesha(self, algorithm):
-        """Internal method to calculate authentihash"""
-        if algorithm != 'sha256' and algorithm != 'sha1':
-            raise ValueError("Wrong pesha algorithm")
-
-        checksum_offset = self.handle.OPTIONAL_HEADER.get_field_absolute_offset('CheckSum')
-        security_dir_entry = self.handle.OPTIONAL_HEADER.DATA_DIRECTORY[4]
-        security_dir_offset = security_dir_entry.get_field_absolute_offset('VirtualAddress')
-        sig_address = security_dir_entry.VirtualAddress
-        sig_size = security_dir_entry.Size
-        sig_file_offset = sig_address 
-
-        hasher = hashlib.new(algorithm)
-        hasher.update(self.get_content()[:checksum_offset])
-        hasher.update(self.get_content()[checksum_offset + 4 : security_dir_offset])
-        start_of_rest = security_dir_offset + 8
-        if sig_address > 0 and sig_address < len(self.get_content()):
-            hasher.update(self.get_content()[start_of_rest : sig_file_offset])
-        else:
-            hasher.update(self.get_content()[start_of_rest:])
-
-        return hasher.hexdigest()
-
-    def pdb(self):
-        if hasattr(self.handle, 'DIRECTORY_ENTRY_DEBUG'):
-            for entry in self.handle.DIRECTORY_ENTRY_DEBUG:
-                if hasattr(entry, 'entry') and hasattr(entry.entry, 'PdbFileName'):
-                    return entry.entry.PdbFileName.decode(errors='ignore')
-
-        return ''
-
-    def is_signed(self):
-        dir_index = pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']
-        dir_entry = self.handle.OPTIONAL_HEADER.DATA_DIRECTORY[dir_index]
-
-        if dir_entry.VirtualAddress == 0 or dir_entry.Size == 0:
+            dir_index = pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']
+            dir_entry = self._pe.OPTIONAL_HEADER.DATA_DIRECTORY[dir_index]
+            
+            if dir_entry.VirtualAddress == 0 or dir_entry.Size == 0:
+                return False
+                
+            if dir_entry.VirtualAddress >= len(self.content):
+                return False
+                
+            return True
+        except (IndexError, AttributeError):
             return False
 
-        file_size = len(self.handle.__data__)
+    @cached_property
+    def certificates(self) -> List[Dict[str, Any]]:
+        if not self.is_signed:
+            return []
 
-        if dir_entry.VirtualAddress >= file_size:
-            return False
-
-        if dir_entry.VirtualAddress + dir_entry.Size > file_size:
-            return False
-
-        return True
-
-    # def signed_status(self):
-    #     if (self.handle.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']]).VirtualAddress != 0:
-    #         return True
-    #     else:
-    #         return False
-
-    def certificates(self):
-        if self.is_signed() == False:
-            raise ValueError(f"File is not signed.")
-        
-        certificates = []
+        results = []
         try:
-            security_dir = self.handle.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']]
-            cert_data = bytes(self.handle.write()[security_dir.VirtualAddress + 8:security_dir.VirtualAddress + security_dir.Size])
+            dir_index = pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']
+            security_dir = self._pe.OPTIONAL_HEADER.DATA_DIRECTORY[dir_index]
+            
+            # Extract raw signature data
+            start = security_dir.VirtualAddress + 8 # Skip wrapper header
+            end = security_dir.VirtualAddress + security_dir.Size
+            cert_data = self.content[start:end]
+
             content_info = cms.ContentInfo.load(cert_data)
             signed_data = content_info['content']
 
-            for cert in signed_data['certificates']:
-                x509_cert = x509.load_der_x509_certificate(cert.dump())
-                thumbprint = x509_cert.fingerprint(hashes.SHA1()).hex()
-                subject = x509_cert.subject.rfc4514_string()
-                signature_hash = hashes.Hash(x509_cert.signature_hash_algorithm)
-                signature_hash.update(x509_cert.tbs_certificate_bytes)
-                signature_hash = signature_hash.finalize().hex()
+            if signed_data['certificates']:
+                for cert in signed_data['certificates']:
+                    # Dump to DER then load into cryptography
+                    x509_cert = x509.load_der_x509_certificate(cert.dump())
 
-                # Extract certificate validity period
-                not_before = x509_cert.not_valid_before_utc
-                not_after = x509_cert.not_valid_after_utc
+                    # Calculating Signature Hash in addition to the thumbprint
+                    signature_hash = hashes.Hash(x509_cert.signature_hash_algorithm)
+                    signature_hash.update(x509_cert.tbs_certificate_bytes)
+                    signature_hash = signature_hash.finalize().hex()
+                    
+                    results.append({
+                        'thumbprint': x509_cert.fingerprint(hashes.SHA1()).hex(),
+                        'signature_hash': signature_hash,
+                        'subject': x509_cert.subject.rfc4514_string(),
+                        'not_before': x509_cert.not_valid_before_utc,
+                        'not_after': x509_cert.not_valid_after_utc,
+                        'serial': x509_cert.serial_number
+                    })
+        except Exception as e:
+            raise ValueError(f"Failed to parse certificates: {e}")
+            
+        return results
 
-                certificates.append({
-                    'thumbprint': thumbprint,
-                    'subject': subject,
-                    'signature_hash': signature_hash,
-                    'not_before': not_before,
-                    'not_after': not_after
-                })
+    @property
+    def pdb_path(self) -> str:
+        if hasattr(self._pe, 'DIRECTORY_ENTRY_DEBUG'):
+            for entry in self._pe.DIRECTORY_ENTRY_DEBUG:
+                if hasattr(entry, 'entry') and hasattr(entry.entry, 'PdbFileName'):
+                    raw_path = entry.entry.PdbFileName
+                    return raw_path.strip(b'\x00').decode(errors='ignore')#.strip(b'\x00').decode()
+        return ''
 
-            return certificates
+    @cached_property
+    def sections(self) -> Dict[str, List[str]]:
+        results = {}
+        for section in self._pe.sections:
+            try:
+                name = section.Name.decode('utf-8').strip('\x00')
+            except UnicodeDecodeError:
+                name = str(section.Name)
+            
+            results[name] = []
+            for char_val, char_name in CHARACTERISTICS.items():
+                if section.Characteristics & char_val:
+                    results[name].append(char_name)
+        return results
 
-        except Exception as E:
-            print(f"Exception has occurred: {E}")
+    @cached_property
+    def imports(self) -> Dict[str, List[str]]:
+        if not hasattr(self._pe, 'DIRECTORY_ENTRY_IMPORT'):
+            return {}
 
-    def sections(self):
-        sections = {}
-        for section in self.handle.sections:
-            section_name = section.Name.decode('utf-8')
-            sections[section_name] = []
-
-            for char in CHARACTERISTICS:
-                if (section.Characteristics & char) != 0:
-                    sections[section_name].append(CHARACTERISTICS[char])
-
-        return sections
-
-    def imports(self):
-        imports = {}
-        try:
-            if not hasattr(self.handle, 'DIRECTORY_ENTRY_IMPORT'):
-                return {}
-
-            for entry in self.handle.DIRECTORY_ENTRY_IMPORT:
+        results = {}
+        for entry in self._pe.DIRECTORY_ENTRY_IMPORT:
+            try:
                 dll_name = entry.dll.decode('utf-8')
-                imports[dll_name] = []
-
+                results[dll_name] = []
                 for imp in entry.imports:
                     if imp.name:
-                        imports[dll_name].append(imp.name.decode('utf-8'))
+                        results[dll_name].append(imp.name.decode('utf-8'))
                     else:
-                        imports[dll_name].append(f"ordinal_{imp.ordinal}")
+                        results[dll_name].append(f"ordinal_{imp.ordinal}")
+            except Exception:
+                continue # Skip malformed entries
+        return results
 
-            return imports
-
-        except Exception as E:
-            print(f"Exception occurred: {E}")
-
-    def exports(self):
-        exports = []
-        try:
-            if not hasattr(self.handle, 'DIRECTORY_ENTRY_EXPORT'):
-                return []
-
-            for func in (self.handle).DIRECTORY_ENTRY_EXPORT.symbols:
-                try:
-                    exports.append(func.name.decode('utf-8'))
-                except TypeError:
-                    pass
-
-            return exports
+    @cached_property
+    def exports(self) -> List[str]:
+        if not hasattr(self._pe, 'DIRECTORY_ENTRY_EXPORT'):
+            return []
         
-        except Exception as E:
-            print(f"Exception occurred: {E}")
+        results = []
+        for func in self._pe.DIRECTORY_ENTRY_EXPORT.symbols:
+            if func.name:
+                try:
+                    results.append(func.name.decode('utf-8'))
+                except UnicodeDecodeError:
+                    continue
+        return results
 
-    def origFilename(self):
-        return self.information['OriginalFilename']
+    # Security Flags
+    @property
+    def has_nx(self) -> bool:
+        return bool(self._pe.OPTIONAL_HEADER.IMAGE_DLLCHARACTERISTICS_NX_COMPAT)
 
-    def fileDescription(self):
-        return self.information['FileDescription']
+    @property
+    def has_guardcf(self) -> bool:
+        return bool(self._pe.OPTIONAL_HEADER.IMAGE_DLLCHARACTERISTICS_GUARD_CF)
 
-    def internalName(self):
-        return self.information['InternalName']
+    # Hashing
+    def _calculate_pesha(self, algorithm_name: str) -> str:
+        """
+        Calculates authentihash (PE hash excluding signature and checksum).
+        """
+        try:
+            checksum_offset = self._pe.OPTIONAL_HEADER.get_field_absolute_offset('CheckSum')
+            security_dir_entry = self._pe.OPTIONAL_HEADER.DATA_DIRECTORY[4]
+            security_dir_offset = security_dir_entry.get_field_absolute_offset('VirtualAddress')
+            sig_address = security_dir_entry.VirtualAddress
+        except Exception:
+            raise ValueError("Could not determine PE offsets for hashing")
 
-    def productName(self):
-        return self.information['ProductName']
+        data = self.content 
+        hasher = hashlib.new(algorithm_name)
 
-    def productVersion(self):
-        return self.information['ProductVersion']
+        hasher.update(data[:checksum_offset])
+        hasher.update(data[checksum_offset + 4 : security_dir_offset])
+        
+        start_of_rest = security_dir_offset + 8
+        
+        if 0 < sig_address < len(data):
+            hasher.update(data[start_of_rest : sig_address])
+        else:
+            hasher.update(data[start_of_rest:])
 
-    def fileVersion(self):
-        return self.information['FileVersion']
+        return hasher.hexdigest()
 
-    def pe_type(self):
-        if self.handle.is_exe(): return "Executable image - .exe"
-        if self.handle.FILE_HEADER.Characteristics & 0x2000: return "Dynamic link library - .dll"
-        if self.subsystem == SUBSYSTEMS[1]: return "Driver (Native subsystem) - .sys"
-        return "Unknown or Special PE Type"
+    @property
+    def sha256(self) -> str:
+        return hashlib.sha256(self.content).hexdigest()
 
-    def NX(self):
-        return True if self.handle.OPTIONAL_HEADER.IMAGE_DLLCHARACTERISTICS_NX_COMPAT == True else False
+    @property
+    def sha1(self) -> str:
+        return hashlib.sha1(self.content).hexdigest()
 
-    def guardcf(self):
-        return True if self.handle.OPTIONAL_HEADER.IMAGE_DLLCHARACTERISTICS_GUARD_CF == True else False
+    @property
+    def md5(self) -> str:
+        return hashlib.md5(self.content).hexdigest()
 
-    def termserveraware(self):
-        return True if self.handle.OPTIONAL_HEADER.IMAGE_DLLCHARACTERISTICS_TERMINAL_SERVER_AWARE == True else False
-
-    def safeseh(self):
-        return True if self.handle.OPTIONAL_HEADER.IMAGE_DLLCHARACTERISTICS_NO_SEH == True else False
-
-    def pesha256(self):
+    @property
+    def pesha256(self) -> str:
         return self._calculate_pesha('sha256')
 
-    def pesha1(self):
-        return self._calculate_pesha('sha1')
-
-    def md5(self):
-        return hashlib.md5(self.get_content()).hexdigest()
-
-    def sha256(self):
-        return hashlib.sha256(self.get_content()).hexdigest()
-
-    def sha1(self):
-        return hashlib.sha1(self.get_content()).hexdigest()
-
-    def get_content(self):
-        return self.handle.write()
-
-    def get_disk_size(self):
-        return len(self.get_content())
-
-    def get_memory_size(self):
-        return self.handle.OPTIONAL_HEADER.SizeOfImage
-
-    def get_handle(self):
-        return self.handle
-
-    def set_handle(self, handle):
-        self.handle = handle
+    @property
+    def imp_hash(self) -> str:
+        """wraps around pefile.get_imphash() for import hashing"""
+        return self._pe.get_imphash()
 
 
-class PexPrinter:
+class PEPrinter:
+    """
+    handles the formatting and output of PE analysis data.
+    """
     def __init__(self, handle):
-        self.object = handle
+        self.pe = handle
+        self.WIDTH = 17
+        self.INDENT = " " * 4
 
-    def print_header(self):
-        if self.object.file_path:
-            print(f"Input PE\t: {os.path.basename(self.object.file_path)}\n" + "="*60)
-        else:
-            print(f"Input PE\t: {self.object.sha256()}\n" + "="*60)
+    def dump_all(self, stream: TextIO = sys.stdout):
+        """Print the whole report"""
+        self.print_header(stream)
+        self.print_hashes(stream)
+        self.print_information(stream)
+        self.print_sections(stream)
+        self.print_imports(stream)
+        self.print_exports(stream)
+        self.print_certificates(stream)
 
-    def print_information(self):
-        # We'll use a standard width for labels to keep things clean
-        w = 10 
-        sub_w = 17 # Width for nested items (like hashes)
+    def _print_kv(self, key: str, value: str, stream: TextIO, indent_level: int = 0):
+        """Helper to print aligned Key-Value pairs."""
+        indent = self.INDENT * indent_level
+        print(f"{indent}{key:<{self.WIDTH}}: {value}", file=stream)
 
-        print(f"{'PE':<{w}}: {self.object.pe_type}")
+    def print_header(self, stream: TextIO = sys.stdout):
+        name = os.path.basename(self.pe.file_path) if self.pe.file_path else "Memory Buffer"
+        print("=" * 60, file=stream)
+        print(f"PE REPORT: {name}", file=stream)
+        print("=" * 60 + "\n", file=stream)
+
+    def print_hashes(self, stream: TextIO = sys.stdout):
+        print("[+] HASHES", file=stream)
+        self._print_kv("MD5", self.pe.md5, stream, 1)
+        self._print_kv("SHA1", self.pe.sha1, stream, 1)
+        self._print_kv("SHA256", self.pe.sha256, stream, 1)
+        self._print_kv("ImpHash", self.pe.imp_hash, stream, 1)
+        self._print_kv("PESHA256", self.pe._calculate_pesha('sha256'), stream, 1)
+        print("", file=stream)
+
+    def print_information(self, stream: TextIO = sys.stdout):
+        print("[+] FILE GENERIC INFO", file=stream)
         
-        print(f"{'Hashes':<{w}}v")
-        print(f"\t* {'sha256':<{sub_w}}: {self.object.sha256()}")
-        print(f"\t* {'md5':<{sub_w}}: {self.object.md5()}")
-        print(f"\t* {'sha1':<{sub_w}}: {self.object.sha1()}")
-        print(f"\t* {'peSha256':<{sub_w}}: {self.object.pesha256()}")
-        print(f"\t* {'peSha1':<{sub_w}}: {self.object.pesha1()}")
+        # General PE Info
+        self._print_kv("Type", self.pe.pe_type, stream, 1)
+        self._print_kv("Arch", self.pe.architecture, stream, 1)
+        self._print_kv("Subsystem", self.pe.subsystem, stream, 1)
+        self._print_kv("Signed", str(self.pe.is_signed), stream, 1)
+        self._print_kv("PDB Path", self.pe.pdb_path or "None", stream, 1)
+        
+        # Security Flags
+        flags = []
+        if self.pe.has_nx: flags.append("NX")
+        if self.pe.has_guardcf: flags.append("GuardCF")
+        self._print_kv("Sec. Flags", ", ".join(flags) if flags else "None", stream, 1)
 
-        print(f"{'File Info':<{w}}v")
-        for metadata, value in self.object.information.items():
-            print(f"\t* {metadata:<{sub_w}}: {value}")
+        print(f"\n{self.INDENT}[ File Information ]", file=stream)
+        for key, val in self.pe.file_information.items():
+            self._print_kv(key, val, stream, 2)
 
-        print(f"\t* {'PDB':<{sub_w}}: {self.object.pdb()}")
-        print(f"{'Signed':<{w}}: {self.object.is_signed()}")
-        print(f"{'Machine':<{w}}: {self.object.architecture}")
-        print(f"{'Subsystem':<{w}}: {self.object.subsystem}")
+        print(f"\n{self.INDENT * 2}[ Hashes ]", file=stream)
+        self._print_kv("MD5", self.pe.md5, stream, 3)
+        self._print_kv("SHA1", self.pe.sha1, stream, 3)
+        self._print_kv("SHA256", self.pe.sha256, stream, 3)
+        self._print_kv("PESHA256", self.pe._calculate_pesha('sha256'), stream, 3)
+        self._print_kv("ImpHash", self.pe.imp_hash, stream, 3)
 
-    def print_sections(self):
-        print("Dumping sections:\n")
-        for section in self.object.sections():
-            print(f"* {section}\n\t{self.object.sections()[section]}")
+    def print_sections(self, stream: TextIO = sys.stdout):
+        print("[+] SECTIONS", file=stream)
+        sections = self.pe.sections
+        
+        if not sections:
+            print(f"{self.INDENT}No sections found.", file=stream)
+            return
 
-    def print_imports(self):
-        print("Dumping imports:\n")
-        imports = self.object.imports()
-        for lib in imports:
-            print(lib)
-            for import_name in imports[lib]:
-                print(f"\t* {import_name}")
+        for name, characteristics in sections.items():
+            chars_str = ", ".join(characteristics) if characteristics else "No special chars"
+            print(f"{self.INDENT}* {name:<8} {chars_str}", file=stream)
+        print("", file=stream)
+    
+    
 
-    def print_exports(self):
-        print("Dumping exports:\n")
-        exports = self.object.exports()
-        for export_name in exports:
-            print(f"* {export_name}")
+    def print_imports(self, stream: TextIO = sys.stdout):
+        print("[+] IMPORTS", file=stream)
+        imports = self.pe.imports
+        
+        if not imports:
+            print(f"{self.INDENT}No imports found.", file=stream)
+            return
 
-    def print_certificates(self):
-        if self.object.is_signed() == False:
-            raise ValueError("File is not signed.")
-            
-        print("Dumping certificates:\n")
-        certificates = self.object.certificates()
-        for i, cert in enumerate(certificates, 1):
-            print(f"[+] Certificate {i}")
-            print(f"\t\t* Subject: {cert['subject']}")
-            print(f"\t\t* Thumbprint: {cert['thumbprint']}")
-            print(f"\t\t* Signature Hash: {cert['signature_hash']}")
-            print(f"\t\t* Valid From: {cert['not_before']}")
-            print(f"\t\t* Valid Until: {cert['not_after']}")
+        for dll, functions in imports.items():
+            print(f"{self.INDENT}* {dll}", file=stream)
+            for func in functions:
+                 print(f"{self.INDENT*2}- {func}", file=stream)
+        print("", file=stream)
+
+    def print_exports(self, stream: TextIO = sys.stdout):
+        print("[+] EXPORTS", file=stream)
+        exports = self.pe.exports
+
+        if not exports:
+            print(f"{self.INDENT}No exports found.", file=stream)
+            return
+
+        for func in exports:
+            print(f"{self.INDENT}* {func}", file=stream)
+        print("", file=stream)
+
+    def print_certificates(self, stream: TextIO = sys.stdout):
+        print("[+] SIGNING CERTIFICATES", file=stream)
+        
+        if not self.pe.is_signed:
+            print(f"{self.INDENT}File is not signed.", file=stream)
+            print("", file=stream)
+            return
+
+        for i, cert in enumerate(self.pe.certificates, 1):
+            print(f"{self.INDENT}Certificate #{i}", file=stream)
+            self._print_kv("Subject", cert['subject'], stream, 2)
+            self._print_kv("Issuer", cert.get('issuer', 'N/A'), stream, 2) # Added safety get
+            self._print_kv("Thumbprint", cert['thumbprint'], stream, 2)
+            self._print_kv("Signature Hash", cert['signature_hash'], stream, 2)
+            self._print_kv("Valid From", str(cert['not_before']), stream, 2)
+            self._print_kv("Valid To", str(cert['not_after']), stream, 2)
+            print("", file=stream)

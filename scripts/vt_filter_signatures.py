@@ -3,7 +3,7 @@ import sys
 import os
 import re
 from collections import defaultdict
-from percer.analyzer import PortExec as pex 
+from percer.analyzer import PEAnalyzer as pex 
 from percer.virustotal import VirusTotal as vtl 
 from percer.logger import Logger
 
@@ -76,14 +76,14 @@ def main():
                     # 2. Parse
                     pex_object = pex.from_bytes(content)
                     
-                    if pex_object.is_signed():
+                    if pex_object.is_signed:
                         log.raw(" | Is signed")
-                        current_hash = pex_object.sha256() if args.hashes else pex_object.pesha256()
+                        current_hash = pex_object.sha256 if args.hashes else pex_object.pesha256
                         
                         matched_any_cert = False
                         
                         # Check all certs in the file
-                        for cert in pex_object.certificates():
+                        for cert in pex_object.certificates:
                             raw_subject = cert.get('subject', 'Unknown Subject')
                             thumbprint = cert.get('thumbprint', '')
                             clean_name = get_common_name(raw_subject)
@@ -115,8 +115,8 @@ def main():
                         
                         # If signed, but NO certs matched the filters
                         if not matched_any_cert:
-                            first_subject = pex_object.certificates()[0].get('subject', 'Unknown') if pex_object.certificates() else "Unknown"
-                            first_thumbprint = pex_object.certificates()[0].get('thumbprint', 'Unknown') if pex_object.certificates() else "Unknown"
+                            first_subject = pex_object.certificates[0].get('subject', 'Unknown') if pex_object.certificates else "Unknown"
+                            first_thumbprint = pex_object.certificates[0].get('thumbprint', 'Unknown') if pex_object.certificates else "Unknown"
                             excluded_samples.append({'hash': current_hash, 'subject': first_subject, 'thumbprint': first_thumbprint})
 
                     else:
