@@ -10,10 +10,7 @@ from percer.logger import Logger
 def main():
 	parser = argparse.ArgumentParser(description=f"{os.path.basename(sys.argv[0])} compares the signatures of the specified hashes/authentihashes")
 
-	group = parser.add_mutually_exclusive_group(required=True)
-	group.add_argument('-A', '--authentihashes', action='store_true', help='File containing pesha256 hashes')
-	group.add_argument('-H', '--hashes', action='store_true', help='File containing sha256/sha1/md5 hashes')
-	parser.add_argument('filename', help='File containing the hashes')
+	parser.add_argument('-f', '--filename', metavar='FILENAME', help='File containing the hashes')
 	args = parser.parse_args()
 
 	log = Logger('percer')
@@ -30,42 +27,32 @@ def main():
 	with vtl() as scanner:
 		for sample in samples:
 			try:
+				# 1. Checking file on VT...
 				log.raw(f"Sample {sample}", end='')
-				if args.hashes:
-					content = scanner.get_content(sample)
+				real_hash = scanner.resolve_hash(sample)
+				content = scanner.get_content(real_hash)
+				
+				# 2. Analyzing file...
+				log.raw(" | Available on VT", end='')
+				pex_object = pex.from_bytes(content)
+				if pex_object.is_signed == True:
+					log.raw(" | is signed")
+
+					certificates[sample] = []
+
+					for i, cert in enumerate(pex_object.certificates):
+						certificates[sample].append(cert['thumbprint'])
+						if not cert['thumbprint'] in publishers:
+							publishers[cert['thumbprint']] = cert['subject']
 				else:
-					v_obj = scanner.query_by_pesha256(sample)
-					if v_obj:
-						content = scanner.get_content(v_obj[0].id)
-					else:
-						content = b''
-
-				if content:
-					log.raw(" | Available on VT", end='')
-					pex_object = pex.from_bytes(content)
-					if pex_object.is_signed == True:
-						log.raw(" | is signed")
-						if args.hashes:
-							certificates[pex_object.sha256] = []
-						else:
-							certificates[pex_object.pesha256] = []
-
-						for i, cert in enumerate(pex_object.certificates):
-							if args.hashes:
-								certificates[pex_object.sha256].append(cert['thumbprint'])
-							else:
-								certificates[pex_object.pesha256].append(cert['thumbprint'])
-
-							if not cert['thumbprint'] in publishers:
-								publishers[cert['thumbprint']] = cert['subject']
-					else:
-						log.raw(" | Not signed")
-				else:
-					log.raw(" | Not available on VT")
-
+					log.raw(" | Not signed")
+			
 			except Exception as E:
-				log.err(f"Exception has occurred: {E}")
-				sys.exit(1)
+				if E.code == 'NotFoundError':
+					log.raw(" | Not available on VT")
+					pass 
+				else:
+					raise ValueError(f"Exception has occurred: {E}")
 
 	hash_to_lists = defaultdict(list)
 
