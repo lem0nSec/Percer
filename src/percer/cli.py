@@ -2,6 +2,7 @@ import argparse
 import sys
 import os
 from pyfiglet import Figlet
+
 from .analyzer import PEAnalyzer, PEPrinter
 from .virustotal import VirusTotal
 from .logger import Logger
