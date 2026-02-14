@@ -1,11 +1,10 @@
 import argparse
 import sys
 import os
-from percer.analyzer import PEAnalyzer as pex
-from percer.analyzer import PEPrinter as pep
-from percer.virustotal import VirusTotal as vtl
-from percer.logger import Logger
 from pyfiglet import Figlet
+from .analyzer import PEAnalyzer, PEPrinter
+from .virustotal import VirusTotal
+from .logger import Logger
 
 
 def main():
@@ -36,15 +35,15 @@ def main():
 
     try:
         if args.file:
-            pex_obj = pex.from_file(args.file)
+            pex_obj = PEAnalyzer.from_file(args.file)
             
         elif args.hash:
-            with vtl() as scanner:
+            with VirusTotal() as scanner:
                 hash = scanner.resolve_hash(args.hash)
                 v_obj_content = scanner.get_content(hash)
-                pex_obj = pex.from_bytes(v_obj_content)
+                pex_obj = PEAnalyzer.from_bytes(v_obj_content)
 
-        printer = pep(pex_obj)
+        printer = PEPrinter(pex_obj)
 
         if args.all:
             print(pex_obj.handle)
