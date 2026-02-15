@@ -1,5 +1,6 @@
 import hashlib
 import pefile
+import math
 import os
 import sys
 from functools import cached_property
@@ -61,7 +62,6 @@ class PEAnalyzer:
                 for st in entry.StringTable:
                     for key, value in st.entries.items():
                         try:
-                            # Safely decode
                             k = key.decode('utf-8')
                             v = value.decode('utf-8')
                             info[k] = v
@@ -182,19 +182,55 @@ class PEAnalyzer:
                     return raw_path.strip(b'\x00').decode(errors='ignore')#.strip(b'\x00').decode()
         return ''
 
+    @staticmethod
+    def _calculate_entropy(data: bytes) -> float:
+        """Calculates the Shannon entropy of a byte sequence."""
+        if not data:
+            return 0.0
+        
+        entropy = 0
+        length = len(data)
+        occurences = [0] * 256
+        for byte in data:
+            occurences[byte] += 1
+            
+        for count in occurences:
+            if count == 0:
+                continue
+            p_x = count / length
+            entropy -= p_x * math.log2(p_x)
+            
+        return entropy
+
     @cached_property
-    def sections(self) -> Dict[str, List[str]]:
-        results = {}
+    def sections(self) -> List[Dict[str, Any]]:
+        results = []
+        
         for section in self._pe.sections:
             try:
                 name = section.Name.decode('utf-8').strip('\x00')
             except UnicodeDecodeError:
                 name = str(section.Name)
-            
-            results[name] = []
+
+            section_characteristics = []
             for char_val, char_name in CHARACTERISTICS.items():
                 if section.Characteristics & char_val:
-                    results[name].append(char_name)
+                    section_characteristics.append(char_name)
+
+            entropy = self._calculate_entropy(section.get_data())
+
+            section_info = {
+                "name": name,
+                "characteristics": section_characteristics,
+                "virtual_address": hex(section.VirtualAddress),
+                "virtual_size": hex(section.Misc_VirtualSize),
+                "raw_size": hex(section.SizeOfRawData),
+                "raw_offset": hex(section.PointerToRawData),
+                "entropy": round(entropy, 3)
+            }
+            
+            results.append(section_info)
+            
         return results
 
     @cached_property
@@ -354,6 +390,7 @@ class PEPrinter:
         self._print_kv("SHA256", self.pe.sha256, stream, 3)
         self._print_kv("PESHA256", self.pe._calculate_pesha('sha256'), stream, 3)
         self._print_kv("ImpHash", self.pe.imp_hash, stream, 3)
+        print('', file=stream)
 
     def print_sections(self, stream: TextIO = sys.stdout):
         print("[+] SECTIONS", file=stream)
@@ -363,13 +400,14 @@ class PEPrinter:
             print(f"{self.INDENT}No sections found.", file=stream)
             return
 
-        for name, characteristics in sections.items():
-            chars_str = ", ".join(characteristics) if characteristics else "No special chars"
-            print(f"{self.INDENT}* {name:<8} {chars_str}", file=stream)
+        print(f"\n{'NAME':<10} {'VIRT_ADDR':<10} {'VIRT_SIZE':<10} {'RAW_SIZE':<10} {'ENTROPY':<10} {'PROPS'}", file=stream)
+        print("-" * 60)
+
+        for s in sections:
+            props = ", ".join(s['characteristics'])
+            print(f"{s['name']:<10} {s['virtual_address']:<10} {s['virtual_size']:<10} {s['raw_size']:<10} {s['entropy']:<10} {props}", file=stream)
         print("", file=stream)
     
-    
-
     def print_imports(self, stream: TextIO = sys.stdout):
         print("[+] IMPORTS", file=stream)
         imports = self.pe.imports
