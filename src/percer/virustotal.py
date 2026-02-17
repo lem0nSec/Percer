@@ -2,6 +2,7 @@ import vt
 import io
 import os
 import sys
+from typing import Optional, Any
 
 
 class VirusTotal:
@@ -10,48 +11,46 @@ class VirusTotal:
 		if not self.API_KEY:
 			raise ValueError("[-] VT API_KEY environment variable not defined")
 
-		self.client = None
+		self.client = vt.Client(self.API_KEY)
 
 	def __enter__(self):
-		self.client = vt.Client(self.API_KEY)
 		return self
 
 	def __exit__(self, exc_type, exc_val, exc_tb):
 		if self.client:
 			self.client.close()
 
-	def get_content(self, hash, path=None):
+	def get_content(self, file_hash: str, output_path: Optional[str] = None) -> Optional[bytes]:
 		"""
 		Downloads file content from VT to either a bytes stream or a file.
 		"""
-		if path is None:
+		if output_path is None:
 			file_stream = io.BytesIO()
-			self.client.download_file(hash, file_stream)
+			self.client.download_file(file_hash, file_stream)
 			return file_stream.getvalue()
 		else:
 			with open(path, 'wb') as f:
-				self.client.download_file(hash, f)
+				self.client.download_file(file_hash, f)
 
-	def query_by_hash(self, hash):
+	def query_by_hash(self, file_hash: str) -> Any:
 		"""
 		Returns a VirusTotal object by standard hash (sha256/sha1/md5)
 		"""
-		return self.client.get_object(f"/files/{hash}")
+		return self.client.get_object(f"/files/{file_hash}")
 
-	def query_custom(self, query):
+	def query_custom(self, query: str) -> list:
 		"""
 		Generic VirusTotal query method
 		"""
 		return list(self.client.iterator('/intelligence/search', params={'query': query}))
 
-	def query_by_pesha256(self, pesha256):
+	def query_by_pesha256(self, file_pesha256: str) -> list:
 		"""
 		Returns a VirusTotal object by authentihash
 		"""
-		query = f"authentihash:{pesha256}"
-		return self.query_custom(query)
+		return self.query_custom(f"authentihash:{file_pesha256}")
 
-	def resolve_hash(self, input_hash):
+	def resolve_hash(self, input_hash: str) -> Optional[str]:
 		"""
 		Attempts to resolve as a standard hash (sha256/sha1/md5), falls back to authentihash
 		"""
