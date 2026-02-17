@@ -1,6 +1,49 @@
 # Percer
 
-**Percer** is a Portable Executable (PE) file format dissection utility/library which I use to quickly get information about a PE file both locally and from VirusTotal.
+
+**Percer** is a Portable Executable (PE) file format dissection utility and library which I use to quickly get information about Windows executables. Percer functions as both a command-line interface (CLI) utility and a library, allowing researchers to extract key information from PE files (metadata, sections, imports/exports, certificates). It comes with a VirusTotal search functionality which enables the user to run custom queries and download files.
+
+## 🌟 Features
+- Dual Mode: Operate as a standalone tool or integrate as a library.
+
+- PE Analysis: Parse Imports, Exports, Sections, and Certificate information (wraps around Python pefile).
+
+- VirusTotal Integration: Query file hashes and download samples to files / byte streams.
+
+- Flexible Inputs: Analyze local files by path or remote samples by hash.
+
+
+## 🛠 Installation
+Install Percer from the source code.
+
+```bash
+# Clone the repo
+git clone https://github.com/lem0nSec/Percer.git
+
+# Navigate to the directory
+cd Percer
+
+# Install dependencies and package
+pip3 install .
+```
+
+### Configuration
+Percer VirusTotal searching functionality requires a valid API key which has to be set as environment variable.
+
+* Linux
+```bash
+export VT_API_KEY='API key goes here'
+```
+
+* Windows (cmd)
+```batch
+set VT_API_KEY=API_key_goes_here
+```
+
+
+## 🚀 CLI Usage
+Percer provides a simple command-line interface.
+
 ```
 C:\>percer --help
 usage: percer <PE file> [-h] (-F FILE | -H HASH) [-a] [-e] [-i] [-s] [-c] [-q]
@@ -17,13 +60,7 @@ options:
   -q, --quiet           Do not print the banner
 ```
 
-## Installation
-Run the following commands to install Percer
-```
-git clone https://github.com/lem0nSec/Percer.git
-cd Percer
-pip3 install .
-```
+
 
 ## Tool Example Usage 
 
