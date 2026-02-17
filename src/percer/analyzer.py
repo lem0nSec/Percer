@@ -48,12 +48,10 @@ class PEAnalyzer:
             return self._pe.__data__
         return self._pe.write()
 
-    @cached_property
+    @property
     def size(self) -> int:
         """Returns the size of the PE file"""
-        if hasattr(self._pe, '__data__') and self._pe.__data__:
-            return len(self._pe.__data__)
-        return len(self._pe.write())
+        return len(self.content)
 
     @cached_property
     def file_information(self) -> Dict[str, str]:
