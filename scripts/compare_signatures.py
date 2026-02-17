@@ -22,6 +22,9 @@ def main():
 	with open(args.filename, 'r') as f:
 		samples = [line.strip() for line in f]
 
+	log.info(f"Starting scan of {len(samples)} samples...")
+    print("-" * 50)
+
 	certificates = {}
 	publishers = {}
 	with vtl() as scanner:

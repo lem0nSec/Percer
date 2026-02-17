@@ -49,6 +49,13 @@ class PEAnalyzer:
         return self._pe.write()
 
     @cached_property
+    def size(self) -> int:
+        """Returns the size of the PE file"""
+        if hasattr(self._pe, '__data__') and self._pe.__data__:
+            return len(self._pe.__data__)
+        return len(self._pe.write())
+
+    @cached_property
     def file_information(self) -> Dict[str, str]:
         """Extracts file information (original filename, product name, etc)"""
         info = {}
@@ -182,7 +189,6 @@ class PEAnalyzer:
                     return raw_path.strip(b'\x00').decode(errors='ignore')#.strip(b'\x00').decode()
         return ''
 
-    @staticmethod
     def _calculate_entropy(data: bytes) -> float:
         """Calculates the Shannon entropy of a byte sequence."""
         if not data:
@@ -380,10 +386,15 @@ class PEPrinter:
         if self.pe.has_guardcf: flags.append("GuardCF")
         self._print_kv("Sec. Flags", ", ".join(flags) if flags else "None", stream, 1)
 
+        # File size
+        self._print_kv('Size', f"{self.pe.size / 1000} kb", stream, 1)
+
+        # File information
         print(f"\n{self.INDENT}[ File Information ]", file=stream)
         for key, val in self.pe.file_information.items():
             self._print_kv(key, val, stream, 2)
 
+        # Hashes
         print(f"\n{self.INDENT * 2}[ Hashes ]", file=stream)
         self._print_kv("MD5", self.pe.md5, stream, 3)
         self._print_kv("SHA1", self.pe.sha1, stream, 3)
