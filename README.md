@@ -44,6 +44,7 @@ set VT_API_KEY=API_key_goes_here
 ## 🚀 CLI Usage
 Percer provides a simple command-line interface.
 
+**Help Menu**
 ```
 C:\>percer --help
 usage: percer <PE file> [-h] (-F FILE | -H HASH) [-a] [-e] [-i] [-s] [-c] [-q]
@@ -60,11 +61,43 @@ options:
   -q, --quiet           Do not print the banner
 ```
 
+**Examples**
 
+**Analyze a local file**
+```batch
+percer -F samples.exe
+```
 
-## Tool Example Usage 
+**Query hash on VirusTotal**
+```batch
+percer -H <sha256/sha1/md5/Authentihash>
+```
+
+**CLI output preview** 
 
 ![](pics/percer_1.png)
 
-## Lib Example Usage
+## 📦 Library Usage
+Percer can be imported into Python projects.
+
+```python
+from percer.analyzer import PEAnalyzer
+from percer.virustotal import VirusTotal
+
+with open('hashes.txt', 'r') as f:
+  hashes = [line.strip() for line in f]
+
+with VirusTotal() as scanner:
+  for input_hash in hashes:
+    try:
+      content = scanner.get_content(scanner.resolve_hash(input_hash))
+      pex_object = PEAnalyzer.from_bytes(content)
+      print(f"Product Name is of {input_hash} is {pex_object.product_name}")
+    except Exception as E:
+      print(E)
+      pass
+```
+
+**Library output preview**
+
 ![](pics/percer_2.png)
