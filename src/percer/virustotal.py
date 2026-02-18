@@ -29,7 +29,7 @@ class VirusTotal:
 			self.client.download_file(file_hash, file_stream)
 			return file_stream.getvalue()
 		else:
-			with open(path, 'wb') as f:
+			with open(output_path, 'wb') as f:
 				self.client.download_file(file_hash, f)
 
 	def query_by_hash(self, file_hash: str) -> Any:
