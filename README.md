@@ -27,7 +27,7 @@ cd Percer
 pip3 install .
 ```
 
-### Configuration
+## 📖 Configuration
 Percer VirusTotal searching functionality requires a valid API key which has to be set as environment variable.
 
 * Linux
@@ -92,7 +92,7 @@ with VirusTotal() as scanner:
     try:
       content = scanner.get_content(scanner.resolve_hash(input_hash))
       pex_object = PEAnalyzer.from_bytes(content)
-      print(f"Product Name is of {input_hash} is {pex_object.product_name}")
+      print(f"Product Name of {input_hash} is {pex_object.product_name}")
     except Exception as E:
       print(E)
       pass
