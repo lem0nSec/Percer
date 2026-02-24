@@ -72,11 +72,11 @@ def main():
     except FileNotFoundError:
         log.err(f"File not found: {args.file}")
         sys.exit(1)
-    except ValueError as e:
-        log.err(f"Invalid PE File: {e}")
+    except ValueError as E:
+        log.err(f"Value error: {E}")
         sys.exit(1)
-    except Exception as e:
-        log.err(f"Unexpected error: {e}")
+    except Exception as E:
+        log.err(f"Unexpected error: {E}")
         sys.exit(1)
 
     return 0

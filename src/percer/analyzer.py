@@ -187,7 +187,7 @@ class PEAnalyzer:
                     return raw_path.strip(b'\x00').decode(errors='ignore')#.strip(b'\x00').decode()
         return ''
 
-    def _calculate_entropy(data: bytes) -> float:
+    def _calculate_entropy(self, data: bytes) -> float:
         """Calculates the Shannon entropy of a byte sequence."""
         if not data:
             return 0.0

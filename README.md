@@ -16,28 +16,28 @@
 ## 🛠 Installation
 Install Percer from the source code.
 
-```bash
+```batch
 # Clone the repo
 git clone https://github.com/lem0nSec/Percer.git
 
 # Navigate to the directory
 cd Percer
 
-# Install dependencies and package
-pip3 install .
+# Install dependencies and package (Windows)
+py -m pip install .
 ```
 
 ## 📖 Configuration
 Percer VirusTotal searching functionality requires a valid API key which has to be set as environment variable.
 
-* Linux
-```bash
-export VT_API_KEY='API key goes here'
-```
-
 * Windows (cmd)
 ```batch
 set VT_API_KEY=API_key_goes_here
+```
+
+* Linux
+```bash
+export VT_API_KEY='API key goes here'
 ```
 
 

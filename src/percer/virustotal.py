@@ -8,15 +8,15 @@ from typing import Optional, Any
 class VirusTotal:
 	def __init__(self):
 		self.API_KEY = os.getenv('VT_API_KEY')
-		if not self.API_KEY:
-			raise ValueError("[-] VT API_KEY environment variable not defined")
-
 		self.client = vt.Client(self.API_KEY)
 
 	def __enter__(self):
 		return self
 
 	def __exit__(self, exc_type, exc_val, exc_tb):
+		self.close()
+
+	def close(self):
 		if self.client:
 			self.client.close()
 
