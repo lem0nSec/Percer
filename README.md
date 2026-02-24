@@ -98,6 +98,3 @@ with VirusTotal() as scanner:
       pass
 ```
 
-**Library output preview**
-
-![](pics/percer_2.png)
