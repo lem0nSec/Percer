@@ -1,5 +1,9 @@
 # Percer
-
+![GitHub License](https://img.shields.io/github/license/lem0nSec/Percer?style=flat-square&color=red)
+![Python Version](https://img.shields.io/badge/python-3.8%2B-blue?style=flat-square&logo=python)
+![GitHub Last Commit](https://img.shields.io/github/last-commit/lem0nSec/Percer?style=flat-square)
+![GitHub Issues](https://img.shields.io/github/issues/lem0nSec/Percer?style=flat-square)
+![GitHub Stars](https://img.shields.io/github/stars/lem0nSec/Percer?style=flat-square&color=gold)
 
 **Percer** is a Portable Executable (PE) file format dissection utility and library which I use to quickly get information about Windows executables. Percer functions as both a command-line interface (CLI) utility and a library, allowing researchers to extract key information from PE files (metadata, sections, imports/exports, certificates). It comes with a VirusTotal search functionality which enables the user to run custom queries and download files.
 
