@@ -155,6 +155,14 @@ class PEAnalyzer:
             content_info = cms.ContentInfo.load(cert_data)
             signed_data = content_info['content']
 
+            # Retrieve leaf certificate serial number
+            leaf_certificate_sn = None
+            if len(signed_data["signer_infos"]) > 0:
+                signer_infos = signed_data["signer_infos"]
+                sid = signer_infos[0]['sid'].native
+                if 'serial_number' in sid:
+                    leaf_certificate_sn = sid['serial_number']
+
             if signed_data['certificates']:
                 for cert in signed_data['certificates']:
                     # Dump to DER then load into cryptography
@@ -171,8 +179,10 @@ class PEAnalyzer:
                         'subject': x509_cert.subject.rfc4514_string(),
                         'not_before': x509_cert.not_valid_before_utc,
                         'not_after': x509_cert.not_valid_after_utc,
-                        'serial': x509_cert.serial_number
+                        'serial': x509_cert.serial_number,
+                        'is_leaf': True if x509_cert.serial_number == leaf_certificate_sn else False
                     })
+
         except Exception as e:
             raise ValueError(f"Failed to parse certificates: {e}")
             
@@ -459,4 +469,5 @@ class PEPrinter:
             self._print_kv("Signature Hash", cert['signature_hash'], stream, 2)
             self._print_kv("Valid From", str(cert['not_before']), stream, 2)
             self._print_kv("Valid To", str(cert['not_after']), stream, 2)
+            self._print_kv("Is leaf:", str(cert['is_leaf']), stream, 2)
             print("", file=stream)
