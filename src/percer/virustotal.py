@@ -38,6 +38,15 @@ class VirusTotal:
 		"""
 		return self.client.get_object(f"/files/{file_hash}")
 
+	def query_by_collection(self, collection_id: str) -> list:
+		"""
+		Returns a list of VirusTotal files object by collection id.
+		"""
+		try:
+			return list(self.client.iterator(f"/collections/{collection_id}/files"))
+		except vt.error.APIError as E:
+			return []
+
 	def query_custom(self, query: str) -> list:
 		"""
 		Generic VirusTotal query method
