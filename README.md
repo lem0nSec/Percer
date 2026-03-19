@@ -18,17 +18,10 @@
 
 
 ## 🛠 Installation
-Install Percer from the source code.
+Install Percer with `pip`.
 
 ```batch
-# Clone the repo
-git clone https://github.com/lem0nSec/Percer.git
-
-# Navigate to the directory
-cd Percer
-
-# Install dependencies and package (Windows)
-py -m pip install .
+py -m pip install percer
 ```
 
 ## 📖 Configuration
