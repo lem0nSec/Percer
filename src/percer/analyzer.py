@@ -101,14 +101,13 @@ class PEAnalyzer:
     def product_name(self) -> str:
         return self.file_information.get('ProductName', '')
 
-    # It seems that ProductVersion is actually the FileVersion and viceversa
     @property
     def product_version(self) -> str:
-        return self.file_information.get('ProductVersion', self.file_information.get('FileVersion', ''))
+        return self.file_information.get('ProductVersion', self.file_information.get('ProductVersion', ''))
 
     @property
     def file_version(self) -> str:
-        return self.file_information.get('FileVersion', self.file_information.get('ProductVersion', ''))
+        return self.file_information.get('FileVersion', self.file_information.get('FileVersion', ''))
 
     @property
     def file_version_number(self) -> int:
