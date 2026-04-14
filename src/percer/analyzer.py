@@ -57,21 +57,31 @@ class PEAnalyzer:
     def file_information(self) -> Dict[str, str]:
         """Extracts file information (original filename, product name, etc)"""
         info = {}
-        if not hasattr(self._pe, 'FileInfo'):
-            return info
+        if hasattr(self._pe, 'FileInfo'):
+            for fileinfo in self._pe.FileInfo:
+                for entry in fileinfo:
+                    if entry.Key != b'StringFileInfo':
+                        continue
+                    for st in entry.StringTable:
+                        for key, value in st.entries.items():
+                            try:
+                                k = key.decode('utf-8')
+                                v = value.decode('utf-8')
+                                info[k] = v
+                            except UnicodeDecodeError:
+                                continue
 
-        for fileinfo in self._pe.FileInfo:
-            for entry in fileinfo:
-                if entry.Key != b'StringFileInfo':
-                    continue
-                for st in entry.StringTable:
-                    for key, value in st.entries.items():
-                        try:
-                            k = key.decode('utf-8')
-                            v = value.decode('utf-8')
-                            info[k] = v
-                        except UnicodeDecodeError:
-                            continue
+        if hasattr(self._pe, 'VS_FIXEDFILEINFO') and self._pe.VS_FIXEDFILEINFO:
+            fixed_info = self._pe.VS_FIXEDFILEINFO[0]
+
+            fv_ms = fixed_info.FileVersionMS
+            fv_ls = fixed_info.FileVersionLS
+            info['FileVersionNumber'] = f"{fv_ms >> 16}.{fv_ms & 0xFFFF}.{fv_ls >> 16}.{fv_ls & 0xFFFF}"
+
+            pv_ms = fixed_info.ProductVersionMS
+            pv_ls = fixed_info.ProductVersionLS
+            info['ProductVersionNumber'] = f"{pv_ms >> 16}.{pv_ms & 0xFFFF}.{pv_ls >> 16}.{pv_ls & 0xFFFF}"
+
         return info
 
     # These are properties that return single file information
@@ -99,6 +109,14 @@ class PEAnalyzer:
     @property
     def file_version(self) -> str:
         return self.file_information.get('FileVersion', self.file_information.get('ProductVersion', ''))
+
+    @property
+    def file_version_number(self) -> int:
+        return self.file_information.get('FileVersionNumber', self.file_information.get('FileVersionNumber', ''))
+
+    @property
+    def product_version_number(self) -> int:
+        return self.file_information.get('ProductVersionNumber', self.file_information.get('ProductVersionNumber', ''))
 
     @property
     def architecture(self) -> str:
