@@ -57,21 +57,31 @@ class PEAnalyzer:
     def file_information(self) -> Dict[str, str]:
         """Extracts file information (original filename, product name, etc)"""
         info = {}
-        if not hasattr(self._pe, 'FileInfo'):
-            return info
+        if hasattr(self._pe, 'FileInfo'):
+            for fileinfo in self._pe.FileInfo:
+                for entry in fileinfo:
+                    if entry.Key != b'StringFileInfo':
+                        continue
+                    for st in entry.StringTable:
+                        for key, value in st.entries.items():
+                            try:
+                                k = key.decode('utf-8')
+                                v = value.decode('utf-8')
+                                info[k] = v
+                            except UnicodeDecodeError:
+                                continue
 
-        for fileinfo in self._pe.FileInfo:
-            for entry in fileinfo:
-                if entry.Key != b'StringFileInfo':
-                    continue
-                for st in entry.StringTable:
-                    for key, value in st.entries.items():
-                        try:
-                            k = key.decode('utf-8')
-                            v = value.decode('utf-8')
-                            info[k] = v
-                        except UnicodeDecodeError:
-                            continue
+        if hasattr(self._pe, 'VS_FIXEDFILEINFO') and self._pe.VS_FIXEDFILEINFO:
+            fixed_info = self._pe.VS_FIXEDFILEINFO[0]
+
+            fv_ms = fixed_info.FileVersionMS
+            fv_ls = fixed_info.FileVersionLS
+            info['FileVersionNumber'] = f"{fv_ms >> 16}.{fv_ms & 0xFFFF}.{fv_ls >> 16}.{fv_ls & 0xFFFF}"
+
+            pv_ms = fixed_info.ProductVersionMS
+            pv_ls = fixed_info.ProductVersionLS
+            info['ProductVersionNumber'] = f"{pv_ms >> 16}.{pv_ms & 0xFFFF}.{pv_ls >> 16}.{pv_ls & 0xFFFF}"
+
         return info
 
     # These are properties that return single file information
@@ -91,14 +101,21 @@ class PEAnalyzer:
     def product_name(self) -> str:
         return self.file_information.get('ProductName', '')
 
-    # It seems that ProductVersion is actually the FileVersion and viceversa
     @property
     def product_version(self) -> str:
-        return self.file_information.get('ProductVersion', self.file_information.get('FileVersion', ''))
+        return self.file_information.get('ProductVersion', self.file_information.get('ProductVersion', ''))
 
     @property
     def file_version(self) -> str:
-        return self.file_information.get('FileVersion', self.file_information.get('ProductVersion', ''))
+        return self.file_information.get('FileVersion', self.file_information.get('FileVersion', ''))
+
+    @property
+    def file_version_number(self) -> int:
+        return self.file_information.get('FileVersionNumber', self.file_information.get('FileVersionNumber', ''))
+
+    @property
+    def product_version_number(self) -> int:
+        return self.file_information.get('ProductVersionNumber', self.file_information.get('ProductVersionNumber', ''))
 
     @property
     def architecture(self) -> str:
@@ -139,53 +156,77 @@ class PEAnalyzer:
 
     @cached_property
     def certificates(self) -> List[Dict[str, Any]]:
-        if not self.is_signed:
-            return []
-
+        """Extracts signatures"""
         results = []
+        seen_thumbprints = set()
+
+        def process_cert_blob(blob: bytes):
+            """Helper to parse a raw PKCS#7 blob and append to results."""
+            try:
+                content_info = cms.ContentInfo.load(blob)
+                signed_data = content_info['content']
+                
+                leaf_certificate_sn = None
+                if len(signed_data["signer_infos"]) > 0:
+                    sid = signed_data["signer_infos"][0]['sid'].native
+                    if 'serial_number' in sid:
+                        leaf_certificate_sn = sid['serial_number']
+
+                if signed_data['certificates']:
+                    for cert in signed_data['certificates']:
+                        x509_cert = x509.load_der_x509_certificate(cert.dump())
+                        tprint = x509_cert.fingerprint(hashes.SHA1()).hex()
+                        
+                        if tprint in seen_thumbprints:
+                            continue
+                        
+                        sig_hash_alg = x509_cert.signature_hash_algorithm
+                        signature_hash = hashes.Hash(sig_hash_alg)
+                        signature_hash.update(x509_cert.tbs_certificate_bytes)
+                        sig_hash_hex = signature_hash.finalize().hex()
+                        
+                        results.append({
+                            'thumbprint': tprint,
+                            'signature_hash': sig_hash_hex,
+                            'subject': x509_cert.subject.rfc4514_string(),
+                            'not_before': x509_cert.not_valid_before_utc,
+                            'not_after': x509_cert.not_valid_after_utc,
+                            'serial': x509_cert.serial_number,
+                            'is_leaf': x509_cert.serial_number == leaf_certificate_sn
+                        })
+                        seen_thumbprints.add(tprint)
+            except Exception:
+                pass
+
+        # 1. Process official signature from the SECURITY_DIRECTORY
         try:
-            dir_index = pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']
-            security_dir = self._pe.OPTIONAL_HEADER.DATA_DIRECTORY[dir_index]
+            security_dir = self._pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']]
+            if security_dir.Size > 8:
+                start = security_dir.VirtualAddress + 8
+                end = security_dir.VirtualAddress + security_dir.Size
+                process_cert_blob(self.content[start:end])
+        except Exception:
+            pass
+
+        # 2. Process hidden signatures
+        overlay_start = self._pe.get_overlay_data_start_offset()
+        if overlay_start and overlay_start < len(self.content):
+            overlay_data = self.content[overlay_start:]
             
-            # Extract raw signature data
-            start = security_dir.VirtualAddress + 8 # Skip wrapper header
-            end = security_dir.VirtualAddress + security_dir.Size
-            cert_data = self.content[start:end]
-
-            content_info = cms.ContentInfo.load(cert_data)
-            signed_data = content_info['content']
-
-            # Retrieve leaf certificate serial number
-            leaf_certificate_sn = None
-            if len(signed_data["signer_infos"]) > 0:
-                signer_infos = signed_data["signer_infos"]
-                sid = signer_infos[0]['sid'].native
-                if 'serial_number' in sid:
-                    leaf_certificate_sn = sid['serial_number']
-
-            if signed_data['certificates']:
-                for cert in signed_data['certificates']:
-                    # Dump to DER then load into cryptography
-                    x509_cert = x509.load_der_x509_certificate(cert.dump())
-
-                    # Calculating Signature Hash in addition to the thumbprint
-                    signature_hash = hashes.Hash(x509_cert.signature_hash_algorithm)
-                    signature_hash.update(x509_cert.tbs_certificate_bytes)
-                    signature_hash = signature_hash.finalize().hex()
-                    
-                    results.append({
-                        'thumbprint': x509_cert.fingerprint(hashes.SHA1()).hex(),
-                        'signature_hash': signature_hash,
-                        'subject': x509_cert.subject.rfc4514_string(),
-                        'not_before': x509_cert.not_valid_before_utc,
-                        'not_after': x509_cert.not_valid_after_utc,
-                        'serial': x509_cert.serial_number,
-                        'is_leaf': True if x509_cert.serial_number == leaf_certificate_sn else False
-                    })
-
-        except Exception as e:
-            raise ValueError(f"Failed to parse certificates: {e}")
+            # PKCS#7 DER start sequence: 0x30 0x82
+            search_seq = b'\x30\x82'
+            current_pos = 0
             
+            while True:
+                idx = overlay_data.find(search_seq, current_pos)
+                if idx == -1:
+                    break
+                
+                potential_blob = overlay_data[idx:]
+                process_cert_blob(potential_blob)
+                
+                current_pos = idx + 2
+
         return results
 
     @property
@@ -194,7 +235,7 @@ class PEAnalyzer:
             for entry in self._pe.DIRECTORY_ENTRY_DEBUG:
                 if hasattr(entry, 'entry') and hasattr(entry.entry, 'PdbFileName'):
                     raw_path = entry.entry.PdbFileName
-                    return raw_path.strip(b'\x00').decode(errors='ignore')#.strip(b'\x00').decode()
+                    return raw_path.strip(b'\x00').decode(errors='ignore')
         return ''
 
     def _calculate_entropy(self, data: bytes) -> float:
