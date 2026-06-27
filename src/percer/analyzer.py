@@ -7,9 +7,34 @@ from functools import cached_property
 from typing import Dict, List, Optional, Union, Any, TextIO
 from cryptography.hazmat.primitives import hashes
 from cryptography import x509
-from asn1crypto import cms
+from asn1crypto import core, cms
 
 from .constants import SUBSYSTEMS, ARCHITECTURES, CHARACTERISTICS
+
+class SpcString(core.Choice):
+    _alternatives = [
+        ('unicode', core.BMPString, {'implicit': 0}),
+        ('ascii', core.IA5String, {'implicit': 1}),
+    ]
+
+class SpcSerializedObject(core.Sequence):
+    _fields = [
+        ('class_id', core.OctetString),
+        ('serialized_data', core.OctetString),
+    ]
+
+class SpcLink(core.Choice):
+    _alternatives = [
+        ('url', core.IA5String, {'implicit': 0}),
+        ('moniker', SpcSerializedObject, {'implicit': 1}),
+        ('file', SpcString, {'explicit': 2}),
+    ]
+
+class SpcSpOpusInfo(core.Sequence):
+    _fields = [
+        ('program_name', SpcString, {'explicit': 0, 'optional': True}),
+        ('more_info', SpcLink, {'explicit': 1, 'optional': True}),
+    ]
 
 class PEAnalyzer:
     """
@@ -167,10 +192,30 @@ class PEAnalyzer:
                 signed_data = content_info['content']
                 
                 leaf_certificate_sn = None
+                opus_program_name = None
+                opus_more_info = None
+                timestamp_max = None
+
                 if len(signed_data["signer_infos"]) > 0:
-                    sid = signed_data["signer_infos"][0]['sid'].native
+                    signer_info = signed_data["signer_infos"][0]
+                    sid = signer_info['sid'].native
                     if 'serial_number' in sid:
                         leaf_certificate_sn = sid['serial_number']
+
+                # Extract SpcSpOpusInfo from signed attributes
+                if signer_info['signed_attrs']:
+                    for attr in signer_info['signed_attrs']:
+                        # SpcSpOpusInfo OID
+                        if attr['type'].native == '1.3.6.1.4.1.311.2.1.12':
+                            for val in attr['values']:
+                                try:
+                                    opus = SpcSpOpusInfo.load(val.dump())
+                                    if opus['program_name'].name:
+                                        opus_program_name = opus['program_name'].chosen.native
+                                    if opus['more_info'].name == 'url':
+                                        opus_more_info = opus['more_info'].chosen.native
+                                except Exception:
+                                    pass
 
                 if signed_data['certificates']:
                     for cert in signed_data['certificates']:
@@ -184,21 +229,31 @@ class PEAnalyzer:
                         signature_hash = hashes.Hash(sig_hash_alg)
                         signature_hash.update(x509_cert.tbs_certificate_bytes)
                         sig_hash_hex = signature_hash.finalize().hex()
+                        is_leaf = x509_cert.serial_number == leaf_certificate_sn
                         
-                        results.append({
+                        cert_data = {
                             'thumbprint': tprint,
                             'signature_hash': sig_hash_hex,
                             'subject': x509_cert.subject.rfc4514_string(),
                             'not_before': x509_cert.not_valid_before_utc,
                             'not_after': x509_cert.not_valid_after_utc,
                             'serial': x509_cert.serial_number,
-                            'is_leaf': x509_cert.serial_number == leaf_certificate_sn
-                        })
+                            'is_leaf': is_leaf
+                        }
+
+                        if is_leaf:
+                            if opus_program_name is not None:
+                                cert_data['opus_program_name'] = opus_program_name
+                            if opus_more_info is not None:
+                                cert_data['opus_more_info'] = opus_more_info
+
+                        results.append(cert_data)
                         seen_thumbprints.add(tprint)
+
             except Exception:
                 pass
 
-        # 1. Process official signature from the SECURITY_DIRECTORY
+        # Process official signature from the SECURITY_DIRECTORY
         try:
             security_dir = self._pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']]
             if security_dir.Size > 8:
@@ -208,7 +263,7 @@ class PEAnalyzer:
         except Exception:
             pass
 
-        # 2. Process hidden signatures
+        # Process hidden signatures
         overlay_start = self._pe.get_overlay_data_start_offset()
         if overlay_start and overlay_start < len(self.content):
             overlay_data = self.content[overlay_start:]
@@ -375,6 +430,10 @@ class PEAnalyzer:
         return self._calculate_pesha('sha256')
 
     @property
+    def pesha1(self) -> str:
+        return self._calculate_pesha('sha1')
+
+    @property
     def imp_hash(self) -> str:
         """wraps around pefile.get_imphash() for import hashing"""
         return self._pe.get_imphash()
@@ -511,4 +570,13 @@ class PEPrinter:
             self._print_kv("Valid From", str(cert['not_before']), stream, 2)
             self._print_kv("Valid To", str(cert['not_after']), stream, 2)
             self._print_kv("Is leaf:", str(cert['is_leaf']), stream, 2)
+
+            if cert.get('is_leaf'):
+                prog_name = cert.get('opus_program_name')
+                more_info = cert.get('opus_more_info')
+                if prog_name is not None:
+                    self._print_kv("Program Name", str(prog_name), stream, 2)
+                if more_info is not None:
+                    self._print_kv("More Info URL", str(more_info), stream, 2)
+
             print("", file=stream)
